@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="screen-orientation" content="landscape" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>MMORPG Web 2D - Singleplayer</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game-container"></div>
+      <div id="ui-overlay">
+        <!-- TOP HUD ala MMORPG -->
+        <div id="top-hud">
+          <div id="player-frame">
+            <div id="avatar" data-job="warrior"><span id="avatar-icon">⚔️</span><span id="lv-badge">1</span></div>
+            <div id="bars">
+              <div id="job-name">WARRIOR</div>
+              <div class="bar hp"><div id="hp-fill"></div><span id="hp-text">--/--</span></div>
+              <div class="bar mp"><div id="mp-fill"></div><span id="mp-text">--/--</span></div>
+              <div class="bar exp"><div id="exp-fill"></div></div>
+            </div>
+          </div>
+          <div id="top-menu">
+            <span id="gold">💰 0</span>
+            <button id="btn-char" title="Karakter">🧍</button>
+            <button id="btn-bag" title="Tas">🎒</button>
+            <button id="btn-quest" title="Quest">📜</button>
+            <span id="hud-pos">X:0 Y:0</span>
+          </div>
+        </div>
+        <!-- BOTTOM -->
+        <div id="bottom-bar">
+          <div id="joystick-base">
+            <div id="joystick-knob"></div>
+          </div>
+          <div id="job-select">
+            <button data-job="warrior">Warrior</button>
+            <button data-job="mage">Mage</button>
+            <button data-job="archer">Archer</button>
+          </div>
+          <div id="action-cluster">
+            <button id="interact-btn" class="hidden" aria-label="Bicara">💬</button>
+            <button id="potion-btn" aria-label="Potion">🧪<span id="potion-count">x3</span></button>
+            <button id="attack-btn" aria-label="Serang">⚔</button>
+          </div>
+        </div>
+      </div>
+      <div id="rotate-hint">
+        <div class="rotate-card">
+          <div class="rotate-icon">⤾</div>
+          <p>Putar HP ke <b>lanskap</b> untuk main</p>
+        </div>
+      </div>
+      <!-- Panels -->
+      <div id="char-panel" class="panel hidden">
+        <div class="char-head">
+          <b id="char-title">Warrior Lv.1</b>
+          <button id="char-close">✕</button>
+        </div>
+        <div class="char-section"><b>Equipment</b><div id="char-weapon"></div></div>
+        <div class="char-section"><b>Primary</b><div id="char-primary"></div></div>
+        <div class="char-section"><b>Combat (WoW)</b><div id="char-derived"></div></div>
+      </div>
+      <div id="bag-panel" class="panel hidden">
+        <div class="char-head"><b>🎒 Tas</b><button id="bag-close">✕</button></div>
+        <div id="bag-grid"></div>
+      </div>
+      <div id="quest-panel" class="panel hidden">
+        <div class="char-head"><b>📜 Quest</b><button id="quest-close">✕</button></div>
+        <div id="quest-list"></div>
+      </div>
+      <div id="npc-panel" class="panel hidden">
+        <div class="char-head"><b>🧙 Tetua Greenfield</b><button id="npc-close">✕</button></div>
+        <p class="npc-greet">Bantu kami bersihkan monster, hadiah menantimu.</p>
+        <div id="npc-list"></div>
+      </div>
+      <div id="death-overlay" class="hidden">
+        <div class="death-card">
+          <div class="death-title">☠️ Kamu Mati</div>
+          <p>Respawn di Greenfield dengan HP penuh.</p>
+          <button id="respawn-btn">Respawn</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

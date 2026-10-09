@@ -1,0 +1,9 @@
+{
+  "name": "MMORPG Web 2D",
+  "short_name": "MMORPG2D",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0e0f13",
+  "theme_color": "#0e0f13",
+  "start_url": "./"
+}
