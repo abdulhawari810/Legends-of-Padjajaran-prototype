@@ -3,6 +3,7 @@ import type { JobId } from './jobs';
 import type { Derived, Primary } from './attributes';
 import { calcDerived } from './attributes';
 import { loadJSON, saveJSON } from './persistence';
+import { ENHANCE_ARMOR_PER_LEVEL, ENHANCE_ATK_PER_LEVEL, getEnhance } from './enhance';
 
 export interface GearBonus {
   primary: Primary;
@@ -112,10 +113,13 @@ function bonusOf(itemId: string | null): GearBonus {
     empty.primary.foc += def.primaryBonus.foc ?? 0;
     empty.primary.con += def.primaryBonus.con ?? 0;
   }
-  empty.pAtk += def.weaponKind === 'melee' ? (def.atk ?? 0) : 0;
-  empty.rAtk += def.weaponKind === 'ranged' ? (def.atk ?? 0) : 0;
-  empty.mAtk += def.weaponKind === 'magic' ? (def.atk ?? 0) : 0;
-  empty.armor += def.def ?? 0;
+  // Batch J: bonus tempa (+2 atk/level senjata, +1 armor/level armor)
+  const enhW = def.slot === 'weapon' ? getEnhance('weapon') * ENHANCE_ATK_PER_LEVEL : 0;
+  const enhA = def.slot === 'armor' ? getEnhance('armor') * ENHANCE_ARMOR_PER_LEVEL : 0;
+  empty.pAtk += def.weaponKind === 'melee' ? (def.atk ?? 0) + enhW : 0;
+  empty.rAtk += def.weaponKind === 'ranged' ? (def.atk ?? 0) + enhW : 0;
+  empty.mAtk += def.weaponKind === 'magic' ? (def.atk ?? 0) + enhW : 0;
+  empty.armor += (def.def ?? 0) + enhA;
   empty.magicRes += def.magicDef ?? Math.floor((def.def ?? 0) / 2);
   empty.critRate += def.critRateBonus ?? 0;
   return empty;

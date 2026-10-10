@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MMORPG Web 2D</string>
+    <string name="title_activity_main">MMORPG Web 2D</string>
+    <string name="package_name">com.mmorpg.web</string>
+    <string name="custom_url_scheme">com.mmorpg.web</string>
+</resources>

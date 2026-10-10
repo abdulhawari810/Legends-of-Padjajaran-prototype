@@ -11,6 +11,7 @@ export class BootScene extends Phaser.Scene {
     this.createPlayerTextures();
     this.createMonsterTextures();
     this.createProjectileTextures();
+    this.createParticleTextures();
     this.createNpcTexture();
     this.scene.start('Map');
   }
@@ -77,7 +78,12 @@ export class BootScene extends Phaser.Scene {
     const defs: Array<[string, number]> = [
       ['slime', 0x22c55e],
       ['goblin', 0x84cc16],
-      ['skeleton', 0xe5e7eb]
+      ['skeleton', 0xe5e7eb],
+      ['wolf', 0x64748b],
+      ['orc', 0x4d7c0f],
+      ['golem', 0x78716c],
+      ['bat', 0x8b5cf6],
+      ['cultist', 0x991b1b]
     ];
     defs.forEach(([name, color]) => {
       if (this.textures.exists(`monster-${name}`)) return;
@@ -90,6 +96,37 @@ export class BootScene extends Phaser.Scene {
       g.generateTexture(`monster-${name}`, 32, 32);
       g.destroy();
     });
+    // Elite: skeleton besar bermahkota + mata merah
+    if (!this.textures.exists('monster-skeleton-elite')) {
+      const g = this.add.graphics();
+      g.fillStyle(0xe5e7eb, 1);
+      g.fillRoundedRect(2, 12, 40, 30, 10);
+      g.fillStyle(0xef4444, 1);
+      g.fillRect(11, 22, 7, 7);
+      g.fillRect(26, 22, 7, 7);
+      // mahkota emas
+      g.fillStyle(0xfbbf24, 1);
+      g.fillTriangle(6, 12, 12, 0, 18, 12);
+      g.fillTriangle(18, 12, 24, 0, 30, 12);
+      g.fillTriangle(30, 12, 36, 0, 38, 12);
+      g.fillRect(6, 10, 32, 4);
+      g.generateTexture('monster-skeleton-elite', 44, 44);
+      g.destroy();
+    }
+    // Troll: raksasa batu kehijauan + mata kuning
+    if (!this.textures.exists('monster-troll')) {
+      const g = this.add.graphics();
+      g.fillStyle(0x4d7c0f, 1);
+      g.fillRoundedRect(2, 10, 44, 34, 10);
+      g.fillStyle(0x365314, 1);
+      g.fillRect(2, 34, 12, 14);
+      g.fillRect(34, 34, 12, 14);
+      g.fillStyle(0xfbbf24, 1);
+      g.fillRect(13, 20, 8, 8);
+      g.fillRect(27, 20, 8, 8);
+      g.generateTexture('monster-troll', 48, 48);
+      g.destroy();
+    }
   }
 
   private createProjectileTextures() {
@@ -117,6 +154,15 @@ export class BootScene extends Phaser.Scene {
       g.generateTexture('slash', 64, 64);
       g.destroy();
     }
+  }
+
+  private createParticleTextures() {
+    if (this.textures.exists('part-dot')) return;
+    const g = this.add.graphics();
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(4, 4, 4);
+    g.generateTexture('part-dot', 8, 8);
+    g.destroy();
   }
 
   private createNpcTexture() {

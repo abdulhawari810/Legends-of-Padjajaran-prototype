@@ -6,8 +6,8 @@ export function createGame(parent: HTMLElement): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent,
-    width: 960,
-    height: 540,
+    width: window.innerWidth,
+    height: window.innerHeight,
     pixelArt: true,
     roundPixels: true,
     backgroundColor: '#15171d',
@@ -19,8 +19,12 @@ export function createGame(parent: HTMLElement): Phaser.Game {
       }
     },
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH
+      // RESIZE: kanvas selalu penuhi layar (tanpa letterbox).
+      // Zoom diatur per-lebar di MapScene.fitWidthZoom (640 world px selebar layar).
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: window.innerWidth,
+      height: window.innerHeight
     },
     scene: [BootScene, MapScene]
   };

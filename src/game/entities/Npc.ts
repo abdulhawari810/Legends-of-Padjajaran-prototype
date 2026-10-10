@@ -7,7 +7,7 @@ export class Npc extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, 'npc-elder');
     scene.add.existing(this);
     scene.physics.add.existing(this, true);
-    this.setDepth(5);
+    this.setDepth(10 + ((y + 24) * 0.01));
     this.setImmovable(true);
 
     this.bubble = scene.add
@@ -19,7 +19,7 @@ export class Npc extends Phaser.Physics.Arcade.Sprite {
         padding: { x: 6, y: 2 }
       })
       .setOrigin(0.5)
-      .setDepth(7);
+      .setDepth(30);
   }
 
   setClaimable(claimable: boolean, hasProgress: boolean) {

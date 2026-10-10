@@ -1,5 +1,7 @@
 import type { StatsSnapshot } from '../game/entities/Player';
 import { getItem } from '../game/data/items';
+import { getEnhance } from '../game/data/enhance';
+import { formatPlaytime, getStats, totalKills } from '../game/data/stats';
 
 // Panel karakter: tampilkan primary (New World) + derived (WoW) + slot senjata.
 export function initCharPanel() {
@@ -14,12 +16,14 @@ export function initCharPanel() {
 
     const w = s.equippedWeaponId ? getItem(s.equippedWeaponId) : undefined;
     const a = s.equippedArmorId ? getItem(s.equippedArmorId) : undefined;
+    const wLv = getEnhance('weapon');
+    const aLv = getEnhance('armor');
     elWeapon.innerHTML =
       (w
-        ? `<div class="stat"><span>🔫 ${w.name}</span><b>+${w.atk} ${w.weaponKind}</b></div>`
+        ? `<div class="stat"><span>🔫 ${w.name} +${wLv}</span><b>+${w.atk} ${w.weaponKind}</b></div>`
         : `<div class="stat"><span>🔫 Tangan kosong</span><b>-</b></div>`) +
       (a
-        ? `<div class="stat"><span>🛡️ ${a.name}</span><b>+${a.def} Armor</b></div>`
+        ? `<div class="stat"><span>🛡️ ${a.name} +${aLv}</span><b>+${a.def} Armor</b></div>`
         : `<div class="stat"><span>🛡️ Tanpa armor</span><b>-</b></div>`);
 
     elPrimary.innerHTML = (
@@ -59,5 +63,22 @@ export function initCharPanel() {
     ]
       .map(([k, v]) => `<div class="stat"><span>${k}</span><b>${v}</b></div>`)
       .join('');
+
+    const gs = getStats();
+    const topKills = Object.entries(gs.kills)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(' • ');
+    const statsEl = document.getElementById('char-stats');
+    if (statsEl) {
+      statsEl.innerHTML =
+        `<div class="stat"><span>Total Kill</span><b>${totalKills(gs)}</b></div>` +
+        `<div class="stat"><span>Mati</span><b>${gs.deaths}</b></div>` +
+        `<div class="stat"><span>Quest Klaim</span><b>${gs.claims}</b></div>` +
+        `<div class="stat"><span>Max Lv</span><b>${gs.maxLevel}</b></div>` +
+        `<div class="stat"><span>Main</span><b>${formatPlaytime(gs.playtimeSec)}</b></div>` +
+        (topKills ? `<div class="stat"><span>Top</span><b>${topKills}</b></div>` : '');
+    }
   }) as EventListener);
 }

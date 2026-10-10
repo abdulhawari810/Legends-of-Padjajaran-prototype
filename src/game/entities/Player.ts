@@ -18,6 +18,9 @@ import {
   starterArmorFor,
   starterWeaponFor
 } from '../data/equipment';
+import { loadJobSave, saveJobSave, saveMeta, loadMeta } from '../data/save';
+import { SKILLS } from '../data/skills';
+import { sfxPotion } from '../audio';
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -57,6 +60,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   potionCooldownMs = 5000;
   private lastAttackAt = 0;
   private lastPotionAt = -9999;
+  private lastSkillAt: Record<JobId, [number, number, number]> = {
+    warrior: [-99999, -99999, -99999],
+    mage: [-99999, -99999, -99999],
+    archer: [-99999, -99999, -99999]
+  };
+  /** Batch N: buff habis waktu (ms scene.time). */
+  shieldUntil = 0;
+  swiftUntil = 0;
   private regenAccum = 0;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -72,20 +83,44 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.createAnims();
     this.setupInput();
-    this.setJob('warrior');
+    // Batch C: mulai dari job terakhir, bukan selalu warrior
+    // (kalau selalu warrior, meta.currentJob ketimpa sebelum MapScene restore)
+    let initialJob: JobId = 'warrior';
+    try {
+      const meta = loadMeta();
+      if (meta.currentJob === 'warrior' || meta.currentJob === 'mage' || meta.currentJob === 'archer') {
+        initialJob = meta.currentJob;
+      }
+    } catch {
+      // abaikan save korup
+    }
+    this.setJob(initialJob);
 
-    window.addEventListener('select-job', ((e: CustomEvent<JobId>) => {
-      this.setJob(e.detail);
-    }) as EventListener);
+    window.addEventListener('select-job', this.onSelectJob);
+    window.addEventListener('use-potion', this.onUsePotion);
+    window.addEventListener('equipment-changed', this.onEquipmentChanged);
+  }
 
-    window.addEventListener('use-potion', (() => {
-      this.tryUsePotion();
-    }) as EventListener);
+  private onSelectJob = ((e: CustomEvent<JobId>) => {
+    this.setJob(e.detail);
+  }) as EventListener;
 
-    window.addEventListener('equipment-changed', (() => {
-      this.recalc(false);
-      this.emitStats();
-    }) as EventListener);
+  private onUsePotion = (() => {
+    this.tryUsePotion();
+  }) as EventListener;
+
+  private onEquipmentChanged = (() => {
+    this.recalc(false);
+    this.emitStats();
+    this.saveCurrentJob();
+  }) as EventListener;
+
+  destroy(fromScene?: boolean): void {
+    // scene di-restart tiap pindah portal: lepas listener agar tidak ganda
+    window.removeEventListener('select-job', this.onSelectJob);
+    window.removeEventListener('use-potion', this.onUsePotion);
+    window.removeEventListener('equipment-changed', this.onEquipmentChanged);
+    super.destroy(fromScene);
   }
 
   tryUsePotion(): boolean {
@@ -96,6 +131,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastPotionAt = now;
     this.hp = Math.min(this.derived.maxHp, this.hp + 50);
     this.emitStats();
+    sfxPotion();
     window.dispatchEvent(new CustomEvent('potion-consumed'));
     window.dispatchEvent(new CustomEvent('potion-used', { detail: this.potionCooldownMs }));
     return true;
@@ -111,6 +147,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.emitStats();
   }
 
+  /** Heal zone: HP + MP sekaligus, 1 emit. */
+  healZone(hpAmt: number, mpAmt: number) {
+    if (this.dead) return;
+    this.hp = Math.min(this.derived.maxHp, this.hp + hpAmt);
+    this.mp = Math.min(this.derived.maxMp, this.mp + mpAmt);
+    this.emitStats();
+  }
+
   /** Damage monster fisik ke player dengan mitigasi WoW. */
   takeDamage(raw: number): { actual: number; dodged: boolean; blocked: boolean; died: boolean } {
     if (this.dead) return { actual: 0, dodged: false, blocked: false, died: true };
@@ -118,7 +162,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return { actual: 0, dodged: true, blocked: false, died: false };
     }
     let blocked = false;
-    if (this.derived.blockChance > 0 && Math.random() < this.derived.blockChance) {
+    // Batch N: Bulwark (shield) = damage -40% + selalu block
+    const now = this.scene.time.now;
+    if (now < this.shieldUntil) {
+      blocked = true;
+      raw = Math.round(raw * 0.6);
+    } else if (this.derived.blockChance > 0 && Math.random() < this.derived.blockChance) {
       blocked = true;
       raw = Math.round(raw * (1 - this.derived.blockValue));
     }
@@ -158,17 +207,40 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   setJob(jobId: JobId) {
+    const prev = this.jobId as JobId | undefined;
+    // simpan job lama sebelum pindah (kecuali init pertama belum ada derived)
+    if (prev && prev !== jobId && this.derived) {
+      this.saveCurrentJob();
+    }
     this.jobId = jobId;
     const job = JOBS.find((j) => j.id === jobId);
     if (!job) return;
-    this.level = 1;
-    this.exp = 0;
-    this.expNext = expForLevel(1);
-    this.primary = { ...job.basePrimary };
-    // auto-pasang starter job agar core equip selalu valid
-    equipWeapon(starterWeaponFor(jobId), jobId, 1);
-    equipItem(starterArmorFor(jobId), jobId, 1);
-    this.recalc(true);
+    const saved = loadJobSave(jobId);
+    if (saved && saved.level >= 1 && saved.level <= 20 && saved.primary) {
+      this.level = saved.level;
+      this.exp = Math.max(0, saved.exp);
+      this.expNext = expForLevel(this.level);
+      this.primary = { ...saved.primary };
+      // restore equip, fallback ke starter bila tidak valid
+      const w = saved.weaponId ?? starterWeaponFor(jobId);
+      const a = saved.armorId ?? starterArmorFor(jobId);
+      equipWeapon(w, jobId, this.level);
+      const ra = equipItem(a, jobId, this.level);
+      if (!ra.ok) equipItem(starterArmorFor(jobId), jobId, 1);
+      this.recalc(true);
+      // restore hp/mp bila valid, kalau tidak full
+      if (saved.hp > 0 && saved.hp <= this.derived.maxHp) this.hp = Math.round(saved.hp);
+      if (saved.mp > 0 && saved.mp <= this.derived.maxMp) this.mp = Math.round(saved.mp);
+    } else {
+      this.level = 1;
+      this.exp = 0;
+      this.expNext = expForLevel(1);
+      this.primary = { ...job.basePrimary };
+      // auto-pasang starter job agar core equip selalu valid
+      equipWeapon(starterWeaponFor(jobId), jobId, 1);
+      equipItem(starterArmorFor(jobId), jobId, 1);
+      this.recalc(true);
+    }
     this.emitStats();
 
     if (jobId === 'warrior') {
@@ -185,6 +257,43 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.baseCooldownMs = 450;
       this.isRanged = true;
       this.projectileTexture = 'proj-arrow';
+    }
+    // persist job + meta setelah pindah
+    try {
+      const meta = loadMeta();
+      if (meta.currentJob !== jobId) {
+        meta.currentJob = jobId;
+        saveMeta(meta);
+      }
+    } catch {
+      // abaikan
+    }
+    this.saveCurrentJob();
+    // sinkron UI cooldown ke job baru (per-job per-slot, tidak ikut job lama)
+    try {
+      const now = this.scene?.time?.now ?? 0;
+      const defs = SKILLS[jobId] ?? [];
+      const left = [0, 1, 2].map((i) => this.skillCooldownLeft(now, defs[i]?.cooldownMs ?? 0, i));
+      window.dispatchEvent(new CustomEvent('skill-cooldown-sync', { detail: left }));
+    } catch {
+      // abaikan
+    }
+  }
+
+  /** Simpan state job saat ini (level/exp/primary/equip/hp/mp). */
+  saveCurrentJob() {
+    try {
+      saveJobSave(this.jobId, {
+        level: this.level,
+        exp: this.exp,
+        primary: { ...this.primary },
+        weaponId: getEquippedWeaponId(),
+        armorId: getEquippedArmorId(),
+        hp: Math.round(this.hp),
+        mp: Math.round(this.mp)
+      });
+    } catch {
+      // abaikan quota error
     }
   }
 
@@ -221,6 +330,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       leveled = true;
     }
     this.emitStats();
+    this.saveCurrentJob();
     return leveled;
   }
 
@@ -254,7 +364,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   effectiveCooldown(): number {
-    return this.baseCooldownMs / (1 + this.derived.hastePct);
+    const base = this.baseCooldownMs / (1 + this.derived.hastePct);
+    // Batch N: Swift = serang 30% lebih cepat
+    try {
+      if (this.scene.time.now < this.swiftUntil) return base * 0.7;
+    } catch {
+      // abaikan
+    }
+    return base;
   }
 
   private setupInput() {
@@ -283,6 +400,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time: number, delta: number) {
+    // Y-sort dari kaki (sprite 32x48): yang kakinya lebih bawah tampil di depan
+    this.setDepth(10 + ((this.y + 24) * 0.01));
     if (this.dead) {
       this.setVelocity(0, 0);
       return;
@@ -317,7 +436,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
-    this.setVelocity(vx * this.speed, vy * this.speed);
+    // Batch N: Swift = gerak +15%
+    const timeNow = this.scene.time.now;
+    const sp = this.speed * (timeNow < this.swiftUntil ? 1.15 : 1);
+    this.setVelocity(vx * sp, vy * sp);
 
     const ax = Math.abs(vx);
     const ay = Math.abs(vy);
@@ -344,6 +466,29 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   markAttacked(now: number) {
     this.lastAttackAt = now;
+  }
+
+  canSkill(now: number, cooldownMs: number, slot = 0): boolean {
+    if (this.dead) return false;
+    return now - (this.lastSkillAt[this.jobId]?.[slot] ?? -99999) >= cooldownMs;
+  }
+
+  markSkilled(now: number, slot = 0) {
+    const arr = this.lastSkillAt[this.jobId];
+    if (arr) arr[slot] = now;
+  }
+
+  skillCooldownLeft(now: number, cooldownMs: number, slot = 0): number {
+    return Math.max(0, cooldownMs - (now - (this.lastSkillAt[this.jobId]?.[slot] ?? -99999)));
+  }
+
+  /** Konsumsi MP bila cukup. Return false bila MP kurang (tidak jadi skill). */
+  tryConsumeMp(cost: number): boolean {
+    if (this.dead) return false;
+    if (this.mp < cost) return false;
+    this.mp = Math.max(0, this.mp - cost);
+    this.emitStats();
+    return true;
   }
 
   /** damage sudah termasuk crit + variance, mitigasi armor monster dilakukan di MapScene */

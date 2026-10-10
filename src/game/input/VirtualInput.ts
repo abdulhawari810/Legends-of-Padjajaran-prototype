@@ -4,6 +4,7 @@ export const VirtualInput = {
   x: 0,
   y: 0,
   attackQueued: false,
+  skillSlotQueued: null as number | null,
   set(x: number, y: number) {
     // deadzone kecil agar idle stabil
     const mag = Math.hypot(x, y);
@@ -30,5 +31,13 @@ export const VirtualInput = {
       return true;
     }
     return false;
+  },
+  requestSkill(slot = 0) {
+    this.skillSlotQueued = slot;
+  },
+  consumeSkill(): number | null {
+    const s = this.skillSlotQueued;
+    this.skillSlotQueued = null;
+    return s;
   }
 };

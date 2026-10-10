@@ -27,12 +27,15 @@
           </div>
           <div id="top-menu">
             <span id="gold">💰 0</span>
+            <button id="btn-mute" title="Suara">🔊</button>
+            <button id="btn-settings" title="Pengaturan">⚙️</button>
             <button id="btn-char" title="Karakter">🧍</button>
             <button id="btn-bag" title="Tas">🎒</button>
             <button id="btn-quest" title="Quest">📜</button>
             <span id="hud-pos">X:0 Y:0</span>
           </div>
         </div>
+        <div id="minimap-wrap"><canvas id="minimap" width="132" height="132"></canvas><span id="minimap-n">N</span></div>
         <!-- BOTTOM -->
         <div id="bottom-bar">
           <div id="joystick-base">
@@ -46,7 +49,10 @@
           <div id="action-cluster">
             <button id="interact-btn" class="hidden" aria-label="Bicara">💬</button>
             <button id="potion-btn" aria-label="Potion">🧪<span id="potion-count">x3</span></button>
-            <button id="attack-btn" aria-label="Serang">⚔</button>
+            <button id="skill-btn" aria-label="Skill 1">🌪️<span class="skill-cd"></span><span class="key">1</span></button>
+            <button id="skill-btn-2" aria-label="Skill 2">🛡️<span class="skill-cd"></span><span class="key">2</span></button>
+            <button id="skill-btn-3" aria-label="Skill 3">💥<span class="skill-cd"></span><span class="key">3</span></button>
+            <button id="attack-btn" aria-label="Serang">⚔<span class="key">Spc</span></button>
           </div>
         </div>
       </div>
@@ -65,6 +71,8 @@
         <div class="char-section"><b>Equipment</b><div id="char-weapon"></div></div>
         <div class="char-section"><b>Primary</b><div id="char-primary"></div></div>
         <div class="char-section"><b>Combat (WoW)</b><div id="char-derived"></div></div>
+        <div class="char-section"><b>Statistik</b><div id="char-stats"></div></div>
+        <div class="char-section"><b>Save</b><div><small id="save-status">Autosave tiap 5s + saat EXP/quest.</small></div><button id="btn-reset-save" class="bag-btn">Reset Save</button></div>
       </div>
       <div id="bag-panel" class="panel hidden">
         <div class="char-head"><b>🎒 Tas</b><button id="bag-close">✕</button></div>
@@ -79,10 +87,18 @@
         <p class="npc-greet">Bantu kami bersihkan monster, hadiah menantimu.</p>
         <div id="npc-list"></div>
       </div>
+      <div id="settings-panel" class="panel hidden">
+        <div class="char-head"><b>⚙️ Pengaturan</b><button id="settings-close">✕</button></div>
+        <div class="char-section"><b>Volume</b><input id="vol-slider" type="range" min="0" max="100" value="22" /></div>
+        <div class="char-section"><button id="btn-mute-2" class="bag-btn">🔊 Mute: OFF</button></div>
+        <div class="char-section"><button id="btn-quality" class="bag-btn">✨ Kualitas: Tinggi</button></div>
+        <div class="char-section"><b>Backup Save</b><textarea id="backup-text" rows="3" placeholder="Export / tempel kode backup di sini"></textarea><div><button id="btn-export" class="bag-btn">📤 Export</button><button id="btn-import" class="bag-btn">📥 Import + Restart</button></div><small id="backup-msg"></small></div>
+      </div>
       <div id="death-overlay" class="hidden">
         <div class="death-card">
           <div class="death-title">☠️ Kamu Mati</div>
-          <p>Respawn di Greenfield dengan HP penuh.</p>
+          <p>Respawn di heal zone dengan HP penuh.</p>
+          <p id="death-penalty" class="npc-greet"></p>
           <button id="respawn-btn">Respawn</button>
         </div>
       </div>

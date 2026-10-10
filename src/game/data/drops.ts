@@ -26,6 +26,52 @@ const TABLE: Record<string, { gold: [number, number]; items: Array<{ id: string;
       { id: 'potion-s', chance: 0.25, count: 1 },
       { id: 'armor-bone', chance: 0.1, count: 1 }
     ]
+  },
+  'skeleton-elite': {
+    gold: [25, 45],
+    items: [
+      { id: 'potion-s', chance: 1.0, count: 1 },
+      { id: 'armor-bone', chance: 0.5, count: 1 }
+    ]
+  },
+  wolf: {
+    gold: [6, 14],
+    items: [
+      { id: 'potion-s', chance: 0.18, count: 1 },
+      { id: 'slime-gel', chance: 0.2, count: 1 }
+    ]
+  },
+  orc: {
+    gold: [10, 20],
+    items: [
+      { id: 'potion-s', chance: 0.22, count: 1 },
+      { id: 'armor-chain', chance: 0.1, count: 1 }
+    ]
+  },
+  golem: {
+    gold: [14, 26],
+    items: [
+      { id: 'potion-s', chance: 0.25, count: 1 },
+      { id: 'armor-bone', chance: 0.12, count: 1 }
+    ]
+  },
+  bat: {
+    gold: [8, 16],
+    items: [{ id: 'potion-s', chance: 0.2, count: 1 }]
+  },
+  cultist: {
+    gold: [12, 22],
+    items: [
+      { id: 'potion-s', chance: 0.22, count: 1 },
+      { id: 'armor-chain', chance: 0.12, count: 1 }
+    ]
+  },
+  'cave-troll': {
+    gold: [40, 70],
+    items: [
+      { id: 'potion-s', chance: 1.0, count: 1 },
+      { id: 'armor-bone', chance: 0.5, count: 1 }
+    ]
   }
 };
 

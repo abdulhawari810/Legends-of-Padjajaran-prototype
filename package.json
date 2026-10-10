@@ -1,18 +1,32 @@
 {
   "name": "mmorpg-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "tauri": "tauri",
+    "cap:sync": "npm run build && cap sync",
+    "build:apk": "npm run cap:sync && node scripts/build-apk.js",
+    "mv:apk": "node scripts/copy-apk.js legends_of_padjajaran.apk"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@tauri-apps/api": "^2.12.2",
     "phaser": "^3.80.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@tauri-apps/cli": "^2.12.1",
+    "jsdom": "^25.0.0",
+    "sharp": "^0.35.5",
     "typescript": "^5.5.4",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "vitest": "^2.1.0"
   }
 }

@@ -1,0 +1,25 @@
+LICENSE — Legends of Padjajaran (mmorpg-web)
+
+Hak cipta © 2026 pemilik proyek. Baca sampai habis sebelum memakai,
+mengubah, atau menyebarluaskan isi repositori ini.
+
+1. KODE SUMBER (semua file .ts/.js/.css/.html/.json/.yml kecuali Aset Merek)
+   - Boleh dipakai, diubah, dan disebarkan untuk belajar maupun proyek
+     komersial, dengan syarat mencantumkan atribusi ke proyek ini.
+   - Disediakan "APA ADANYA", tanpa jaminan apa pun.
+
+2. ASET MEREK (EKSKLUSIF — DILARANG PAKAI TANPA IZIN TERTULIS)
+   Yang termasuk Aset Merek:
+   - Nama "Legends of Padjajaran", singkatan "LoP", dan judul/judul jendela
+     turunannya ("MMORPG Web 2D" sebagai judul game ini).
+   - Logo dan seluruh artwork: Lop.jpg, assets/icon.png, assets/splash.png,
+     ikon launcher (android/**/mipmap-*, src-tauri/icons/*, icons/*),
+     store/icon-512.png, splash.mp4, dan gambar promosi apa pun.
+   - DILARANG: memakai, menyalin, mengubah, atau menyebarluaskan Aset Merek
+     untuk proyek lain, fork publik, maupun rilis ulang dalam bentuk apa pun.
+   - Fork/turunan WAJIB rebrand total: ganti nama, logo, ikon, splash, dan
+     hapus seluruh Aset Merek sebelum dipublikasikan.
+
+3. Pelanggaran bagian 2 dapat ditindak sesuai hukum yang berlaku.
+
+Ringkasan awam: kodenya boleh dipakai, nama + gambarnya jangan.

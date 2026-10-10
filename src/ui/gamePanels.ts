@@ -1,5 +1,7 @@
 import { ITEMS, getItem } from '../game/data/items';
 import { snapshotQuests } from '../game/data/questState';
+import { BOUNTY_REWARD_EXP, BOUNTY_REWARD_GOLD, getBounty } from '../game/data/bounty';
+import { snapshotAchievements } from '../game/data/achievements';
 import { getCount, removeItem, snapshotInventory } from '../game/data/inventory';
 import { getGold } from '../game/data/currency';
 import {
@@ -182,8 +184,34 @@ export function initGamePanels() {
 
   function renderQuest() {
     const list = document.getElementById('quest-list')!;
-    list.innerHTML = snapshotQuests()
+    const b = getBounty();
+    const bountyHtml = `<div class="quest-item ${b.done ? 'done' : ''}">
+          <b>🎯 Bounty Harian: Skeleton Elite</b>
+          <p>Kalahkan 1 Skeleton Elite hari ini (reset harian).</p>
+          <small>${b.done ? `✅ Selesai • +${BOUNTY_REWARD_GOLD}G +${BOUNTY_REWARD_EXP} EXP` : `⚔️ ${Math.min(b.progress, 1)}/1`}</small>
+        </div>`;
+    const achHtml = snapshotAchievements()
+      .map(
+        (a) => `<div class="quest-item ${a.unlocked ? 'done' : 'locked'}">
+          <b>${a.unlocked ? '🏆' : '🔒'} ${a.name}</b>
+          <p>${a.desc}</p>
+          <small>${a.unlocked ? '✅ Selesai' : `+${a.gold}G`}</small>
+        </div>`
+      )
+      .join('');
+    list.innerHTML =
+      bountyHtml +
+      `<div class="char-section"><b>Pencapaian</b></div>${achHtml}` +
+      `<div class="char-section"><b>Quest</b></div>` +
+      snapshotQuests()
       .map((q) => {
+        if (!q.unlocked) {
+          return `<div class="quest-item locked">
+          <b>🔒 ${q.title}</b>
+          <p>${q.desc}</p>
+          <small>Terkunci • selesaikan quest sebelumnya</small>
+        </div>`;
+        }
         const state = q.claimed ? '✅ Selesai (diklaim)' : q.done ? '🎁 Siap klaim di Tetua 🧙' : `⚔️ ${Math.min(q.progress, q.killCount)}/${q.killCount}`;
         return `<div class="quest-item ${q.done ? 'done' : ''}">
           <b>${q.claimed ? '✅' : q.done ? '🎁' : '📜'} ${q.title}</b>
@@ -200,6 +228,12 @@ export function initGamePanels() {
     if (potionCount) potionCount.textContent = `x${getCount('potion-s')}`;
   });
   window.addEventListener('quest-changed', () => {
+    if (!panels.quest.classList.contains('hidden')) renderQuest();
+  });
+  window.addEventListener('bounty-changed', () => {
+    if (!panels.quest.classList.contains('hidden')) renderQuest();
+  });
+  window.addEventListener('game-stats-changed', () => {
     if (!panels.quest.classList.contains('hidden')) renderQuest();
   });
   window.addEventListener('equipment-changed', () => {

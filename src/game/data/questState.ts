@@ -43,8 +43,16 @@ export function isQuestClaimed(questId: string): boolean {
   return claimed.has(questId);
 }
 
+/** Terbuka bila tanpa prasyarat atau prasyarat sudah done. */
+export function isQuestUnlocked(questId: string): boolean {
+  const q = QUESTS.find((x) => x.id === questId);
+  if (!q) return false;
+  if (!q.requires) return true;
+  return done.has(q.requires);
+}
+
 export function canClaim(questId: string): boolean {
-  return done.has(questId) && !claimed.has(questId);
+  return isQuestUnlocked(questId) && done.has(questId) && !claimed.has(questId);
 }
 
 export function hasClaimable(): boolean {
@@ -55,6 +63,7 @@ export function registerKill(monsterId: string): string[] {
   const completed: string[] = [];
   QUESTS.forEach((q) => {
     if (done.has(q.id)) return;
+    if (!isQuestUnlocked(q.id)) return;
     if (q.killTarget !== monsterId) return;
     progress.set(q.id, (progress.get(q.id) ?? 0) + 1);
     if ((progress.get(q.id) ?? 0) >= q.killCount) {
@@ -83,6 +92,7 @@ export function snapshotQuests() {
     progress: getQuestProgress(q.id),
     done: isQuestDone(q.id),
     claimed: isQuestClaimed(q.id),
-    claimable: canClaim(q.id)
+    claimable: canClaim(q.id),
+    unlocked: isQuestUnlocked(q.id)
   }));
 }
