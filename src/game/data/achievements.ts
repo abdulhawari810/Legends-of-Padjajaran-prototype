@@ -17,7 +17,12 @@ export const ACHIEVEMENTS: AchDef[] = [
   { id: 'elite-1', name: 'Pembunuh Elite', desc: 'Kalahkan 1 Skeleton Elite.', gold: 50 },
   { id: 'smith-5', name: 'Pandai Master', desc: 'Tempa equipment +5.', gold: 100 },
   { id: 'quest-5', name: 'Pahlawan Desa', desc: 'Selesaikan 5 quest (klaim).', gold: 50 },
-  { id: 'level-10', name: 'Veteran', desc: 'Capai Lv.10.', gold: 100 }
+  { id: 'level-10', name: 'Veteran', desc: 'Capai Lv.10.', gold: 100 },
+  { id: 'traveler', name: 'Penjelajah', desc: 'Kunjungi 3 map.', gold: 60 },
+  { id: 'troll-1', name: 'Raja Gua Tumbang', desc: 'Kalahkan 1 Cave Troll.', gold: 80 },
+  { id: 'rich-500', name: 'Kantong Tebal', desc: 'Pegang 500 gold sekaligus.', gold: 40 },
+  { id: 'die-10', name: 'Pantang Menyerah', desc: 'Mati 10 kali (tetap lanjut!).', gold: 30 },
+  { id: 'skill-50', name: 'Ahli Skill', desc: 'Pakai skill 50 kali.', gold: 40 }
 ];
 
 const KEY = 'mmorpg-ach-v1';
@@ -59,6 +64,7 @@ export function checkKills(monsterId: string) {
   if (totalKills(s) >= 1) grant('first-blood');
   if ((s.kills['slime'] ?? 0) >= 50) grant('slime-50');
   if (monsterId === 'skeleton-elite' && (s.kills['skeleton-elite'] ?? 0) >= 1) grant('elite-1');
+  if (monsterId === 'cave-troll' && (s.kills['cave-troll'] ?? 0) >= 1) grant('troll-1');
 }
 
 export function checkEnhance() {
@@ -71,4 +77,20 @@ export function checkClaims() {
 
 export function checkLevel(lvl: number) {
   if (lvl >= 10) grant('level-10');
+}
+
+export function checkTravel() {
+  if (getStats().visited.length >= 3) grant('traveler');
+}
+
+export function checkRich(gold: number) {
+  if (gold >= 500) grant('rich-500');
+}
+
+export function checkDeaths() {
+  if (getStats().deaths >= 10) grant('die-10');
+}
+
+export function checkSkills() {
+  if (getStats().skillUses >= 50) grant('skill-50');
 }

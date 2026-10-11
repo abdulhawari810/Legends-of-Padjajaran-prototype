@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { worldText } from '../text';
 
 export class Npc extends Phaser.Physics.Arcade.Sprite {
   bubble: Phaser.GameObjects.Text;
@@ -10,14 +11,13 @@ export class Npc extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(10 + ((y + 24) * 0.01));
     this.setImmovable(true);
 
-    this.bubble = scene.add
-      .text(x, y - 52, '!', {
-        fontSize: '18px',
-        color: '#fbbf24',
-        fontStyle: 'bold',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        padding: { x: 6, y: 2 }
-      })
+    this.bubble = worldText(scene, x, y - 52, '!', {
+      fontSize: '18px',
+      color: '#fbbf24',
+      fontStyle: 'bold',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      padding: { x: 6, y: 2 }
+    })
       .setOrigin(0.5)
       .setDepth(30);
   }

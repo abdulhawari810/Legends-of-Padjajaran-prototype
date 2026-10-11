@@ -3,7 +3,7 @@
 > Lihat `LICENSE`: kode boleh dipakai dengan atribusi, **nama + logo/ikon
 > game ini dilarang dipakai** (fork wajib rebrand).
 
-Game RPG 2D top-down singleplayer: 3 job, 3 map, 10 monster (+2 boss),
+Game RPG 2D top-down singleplayer: 3 job, 3 map, 8 monster + 2 boss,
 12 quest + bounty harian, shop, tempa gear, 9 skill, achievement, dan
 save permanen — jalan di web, Android (Capacitor), dan siap desktop (Tauri).
 
@@ -45,9 +45,9 @@ Mati = respawn di heal zone dengan penalti 5% gold.
 
 - **3 job** (Warrior/Mage/Archer), save terpisah per job, ganti tanpa reset
 - **3 map** via portal: Greenfield → Dark Forest → Crystal Cave (+heal zone)
-- **10 monster + 2 boss** (Elite & Troll berpola AoE telegraph + summon),
+- **8 monster + 2 boss** (Elite & Troll berpola AoE telegraph + summon),
   AI aggro/provoke/leash-evade (immune + heal saat pulang)
-- **12 quest chain + bounty harian + 6 achievement** + statistik
+- **12 quest chain + 3 bounty harian + 11 achievement** + statistik
 - **Shop** (beli potion/jual drop), **tempa +1..+5**, atribut New World ×
   combat WoW (crit/dodge/block/haste/lifesteal)
 - **9 skill** (3/job, MP + cooldown per-slot), auto-target + syarat hadap

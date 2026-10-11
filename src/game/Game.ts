@@ -20,7 +20,7 @@ export function createGame(parent: HTMLElement): Phaser.Game {
     },
     scale: {
       // RESIZE: kanvas selalu penuhi layar (tanpa letterbox).
-      // Zoom diatur per-lebar di MapScene.fitWidthZoom (640 world px selebar layar).
+      // Zoom diatur per-lebar di MapScene.fitWidthZoom (VIEW_WIDTH world px).
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
       width: window.innerWidth,

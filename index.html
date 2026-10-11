@@ -1,12 +1,18 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="screen-orientation" content="landscape" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>MMORPG Web 2D - Singleplayer</title>
   </head>
@@ -17,25 +23,45 @@
         <!-- TOP HUD ala MMORPG -->
         <div id="top-hud">
           <div id="player-frame">
-            <div id="avatar" data-job="warrior"><span id="avatar-icon">⚔️</span><span id="lv-badge">1</span></div>
+            <div id="avatar" data-job="warrior">
+              <span id="avatar-icon">⚔️</span><span id="lv-badge">1</span>
+            </div>
             <div id="bars">
               <div id="job-name">WARRIOR</div>
-              <div class="bar hp"><div id="hp-fill"></div><span id="hp-text">--/--</span></div>
-              <div class="bar mp"><div id="mp-fill"></div><span id="mp-text">--/--</span></div>
+              <div class="bar hp">
+                <div id="hp-fill"></div>
+                <span id="hp-text">--/--</span>
+              </div>
+              <div class="bar mp">
+                <div id="mp-fill"></div>
+                <span id="mp-text">--/--</span>
+              </div>
               <div class="bar exp"><div id="exp-fill"></div></div>
+              <div id="gold-row">💰 <span id="gold">0</span></div>
+            </div>
+          </div>
+          <div id="target-frame" class="hidden">
+            <div id="target-portrait">👹</div>
+            <div id="target-bars">
+              <div id="target-name">- Lv.1</div>
+              <div class="bar hp">
+                <div id="target-hp-fill"></div>
+                <span id="target-hp-text"></span>
+              </div>
             </div>
           </div>
           <div id="top-menu">
-            <span id="gold">💰 0</span>
             <button id="btn-mute" title="Suara">🔊</button>
             <button id="btn-settings" title="Pengaturan">⚙️</button>
             <button id="btn-char" title="Karakter">🧍</button>
             <button id="btn-bag" title="Tas">🎒</button>
             <button id="btn-quest" title="Quest">📜</button>
-            <span id="hud-pos">X:0 Y:0</span>
           </div>
         </div>
-        <div id="minimap-wrap"><canvas id="minimap" width="132" height="132"></canvas><span id="minimap-n">N</span></div>
+        <div id="minimap-wrap">
+          <canvas id="minimap" width="132" height="132"></canvas
+          ><span id="minimap-n">N</span>
+        </div>
         <!-- BOTTOM -->
         <div id="bottom-bar">
           <div id="joystick-base">
@@ -47,12 +73,57 @@
             <button data-job="archer">Archer</button>
           </div>
           <div id="action-cluster">
-            <button id="interact-btn" class="hidden" aria-label="Bicara">💬</button>
-            <button id="potion-btn" aria-label="Potion">🧪<span id="potion-count">x3</span></button>
-            <button id="skill-btn" aria-label="Skill 1">🌪️<span class="skill-cd"></span><span class="key">1</span></button>
-            <button id="skill-btn-2" aria-label="Skill 2">🛡️<span class="skill-cd"></span><span class="key">2</span></button>
-            <button id="skill-btn-3" aria-label="Skill 3">💥<span class="skill-cd"></span><span class="key">3</span></button>
-            <button id="attack-btn" aria-label="Serang">⚔<span class="key">Spc</span></button>
+            <button id="interact-btn" class="hidden" aria-label="Bicara">
+              💬
+            </button>
+            <button id="potion-btn" aria-label="Potion">
+              🧪<span id="potion-count">x3</span>
+            </button>
+            <button id="skill-btn" aria-label="Skill 1">
+              🌪️<span class="skill-cd"></span><span class="key">1</span>
+            </button>
+            <button id="skill-btn-2" aria-label="Skill 2">
+              🛡️<span class="skill-cd"></span><span class="key">2</span>
+            </button>
+            <button id="skill-btn-3" aria-label="Skill 3">
+              💥<span class="skill-cd"></span><span class="key">3</span>
+            </button>
+            <button id="attack-btn" aria-label="Serang">
+              ⚔<span class="key">Spc</span>
+            </button>
+          </div>
+        </div>
+        <!-- Menu cepat kanan (desktop saja) -->
+        <div id="quick-menu">
+          <button data-go="btn-char" title="Karakter">
+            🧍<small>CHAR</small>
+          </button>
+          <button data-go="btn-bag" title="Tas">🎒<small>TAS</small></button>
+          <button data-go="btn-quest" title="Quest">
+            📜<small>QUEST</small>
+          </button>
+          <button data-go="btn-settings" title="Pengaturan">
+            ⚙️<small>SET</small>
+          </button>
+          <button data-go="btn-mute" title="Suara">
+            🔊<small>SUARA</small>
+          </button>
+        </div>
+        <!-- Chat (desktop saja) -->
+        <div id="chat-panel">
+          <div id="chat-tabs">
+            <button data-tab="all" class="active">ALL</button>
+            <button data-tab="system">SISTEM</button>
+          </div>
+          <div id="chat-log"></div>
+          <div id="chat-input-row">
+            <input
+              id="chat-input"
+              maxlength="120"
+              placeholder="Enter message..."
+              autocomplete="off"
+            />
+            <button id="chat-send" title="Kirim">➤</button>
           </div>
         </div>
       </div>
@@ -68,31 +139,78 @@
           <b id="char-title">Warrior Lv.1</b>
           <button id="char-close">✕</button>
         </div>
-        <div class="char-section"><b>Equipment</b><div id="char-weapon"></div></div>
-        <div class="char-section"><b>Primary</b><div id="char-primary"></div></div>
-        <div class="char-section"><b>Combat (WoW)</b><div id="char-derived"></div></div>
-        <div class="char-section"><b>Statistik</b><div id="char-stats"></div></div>
-        <div class="char-section"><b>Save</b><div><small id="save-status">Autosave tiap 5s + saat EXP/quest.</small></div><button id="btn-reset-save" class="bag-btn">Reset Save</button></div>
+        <div class="char-section">
+          <b>Equipment</b>
+          <div id="char-weapon"></div>
+        </div>
+        <div class="char-section">
+          <b>Primary</b>
+          <div id="char-primary"></div>
+        </div>
+        <div class="char-section">
+          <b>Combat (WoW)</b>
+          <div id="char-derived"></div>
+        </div>
+        <div class="char-section">
+          <b>Statistik</b>
+          <div id="char-stats"></div>
+        </div>
+        <div class="char-section">
+          <b>Save</b>
+          <div>
+            <small id="save-status">Autosave tiap 5s + saat EXP/quest.</small>
+          </div>
+          <button id="btn-reset-save" class="bag-btn">Reset Save</button>
+        </div>
       </div>
       <div id="bag-panel" class="panel hidden">
-        <div class="char-head"><b>🎒 Tas</b><button id="bag-close">✕</button></div>
+        <div class="char-head">
+          <b>🎒 Tas</b><button id="bag-close">✕</button>
+        </div>
         <div id="bag-grid"></div>
       </div>
       <div id="quest-panel" class="panel hidden">
-        <div class="char-head"><b>📜 Quest</b><button id="quest-close">✕</button></div>
+        <div class="char-head">
+          <b>📜 Quest</b><button id="quest-close">✕</button>
+        </div>
         <div id="quest-list"></div>
       </div>
       <div id="npc-panel" class="panel hidden">
-        <div class="char-head"><b>🧙 Tetua Greenfield</b><button id="npc-close">✕</button></div>
+        <div class="char-head">
+          <b>🧙 Tetua Greenfield</b><button id="npc-close">✕</button>
+        </div>
         <p class="npc-greet">Bantu kami bersihkan monster, hadiah menantimu.</p>
         <div id="npc-list"></div>
       </div>
       <div id="settings-panel" class="panel hidden">
-        <div class="char-head"><b>⚙️ Pengaturan</b><button id="settings-close">✕</button></div>
-        <div class="char-section"><b>Volume</b><input id="vol-slider" type="range" min="0" max="100" value="22" /></div>
-        <div class="char-section"><button id="btn-mute-2" class="bag-btn">🔊 Mute: OFF</button></div>
-        <div class="char-section"><button id="btn-quality" class="bag-btn">✨ Kualitas: Tinggi</button></div>
-        <div class="char-section"><b>Backup Save</b><textarea id="backup-text" rows="3" placeholder="Export / tempel kode backup di sini"></textarea><div><button id="btn-export" class="bag-btn">📤 Export</button><button id="btn-import" class="bag-btn">📥 Import + Restart</button></div><small id="backup-msg"></small></div>
+        <div class="char-head">
+          <b>⚙️ Pengaturan</b><button id="settings-close">✕</button>
+        </div>
+        <div class="char-section">
+          <b>Volume</b
+          ><input id="vol-slider" type="range" min="0" max="100" value="22" />
+        </div>
+        <div class="char-section">
+          <button id="btn-mute-2" class="bag-btn">🔊 Mute: OFF</button>
+        </div>
+        <div class="char-section">
+          <button id="btn-quality" class="bag-btn">✨ Kualitas: Tinggi</button>
+        </div>
+        <div class="char-section">
+          <b>Backup Save</b
+          ><textarea
+            id="backup-text"
+            rows="3"
+            placeholder="Export / tempel kode backup di sini"
+          ></textarea>
+          <div>
+            <button id="btn-export" class="bag-btn">📤 Export</button
+            ><button id="btn-import" class="bag-btn">
+              📥 Import + Restart
+            </button>
+          </div>
+          <small id="backup-msg"></small>
+        </div>
       </div>
       <div id="death-overlay" class="hidden">
         <div class="death-card">

@@ -1,15 +1,25 @@
 import { loadJSON, saveJSON } from './persistence';
 
-// Batch H: bounty harian (repeatable) + counter. Reset tiap hari kalender lokal.
-export const BOUNTY_TARGET = 'skeleton-elite';
-export const BOUNTY_NEED = 1;
-export const BOUNTY_REWARD_GOLD = 60;
-export const BOUNTY_REWARD_EXP = 40;
+// Batch S: bounty harian per-map (reset tiap hari kalender lokal).
+export interface BountyDef {
+  id: string;
+  name: string;
+  target: string; // monster id
+  need: number;
+  gold: number;
+  exp: number;
+}
+
+export const BOUNTIES: BountyDef[] = [
+  { id: 'b-green', name: 'Bounty Greenfield', target: 'skeleton-elite', need: 1, gold: 60, exp: 40 },
+  { id: 'b-dark', name: 'Bounty Dark Forest', target: 'golem', need: 2, gold: 80, exp: 60 },
+  { id: 'b-cave', name: 'Bounty Crystal Cave', target: 'cave-troll', need: 1, gold: 120, exp: 100 }
+];
 
 export interface BountyState {
   date: string; // YYYY-MM-DD lokal
-  progress: number;
-  done: boolean;
+  progress: Record<string, number>;
+  done: string[];
 }
 
 const KEY = 'mmorpg-bounty-v1';
@@ -21,14 +31,17 @@ function today(): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export function getBounty(): BountyState {
-  const fallback: BountyState = { date: today(), progress: 0, done: false };
+function fresh(): BountyState {
+  return { date: today(), progress: {}, done: [] };
+}
+
+function load(): BountyState {
   try {
-    const s = loadJSON<BountyState>(KEY, fallback);
-    if (s.date !== today()) return { ...fallback };
-    return { date: s.date, progress: s.progress ?? 0, done: !!s.done };
+    const s = loadJSON<BountyState>(KEY, fresh());
+    if (s.date !== today()) return fresh();
+    return { date: s.date, progress: s.progress ?? {}, done: s.done ?? [] };
   } catch {
-    return { ...fallback };
+    return fresh();
   }
 }
 
@@ -36,17 +49,36 @@ function persist(s: BountyState) {
   saveJSON(KEY, s);
 }
 
-/** Dipanggil saat elite mati. Return true bila bounty selesai tepat di kill ini. */
-export function registerEliteKill(): boolean {
-  const s = getBounty();
-  if (s.done) return false;
-  s.progress = Math.min(BOUNTY_NEED, s.progress + 1);
-  let completed = false;
-  if (s.progress >= BOUNTY_NEED) {
-    s.done = true;
-    completed = true;
-  }
+export interface BountyView extends BountyDef {
+  progress: number;
+  done: boolean;
+}
+
+export function getBounties(): BountyView[] {
+  const s = load();
+  return BOUNTIES.map((b) => ({
+    ...b,
+    progress: s.progress[b.id] ?? 0,
+    done: s.done.includes(b.id)
+  }));
+}
+
+/** Dipanggil tiap monster mati. Return bounty yang selesai tepat di kill ini. */
+export function registerKillBounty(monsterId: string): BountyDef[] {
+  const s = load();
+  const completed: BountyDef[] = [];
+  BOUNTIES.forEach((b) => {
+    if (s.done.includes(b.id)) return;
+    if (b.target !== monsterId) return;
+    s.progress[b.id] = Math.min(b.need, (s.progress[b.id] ?? 0) + 1);
+    if (s.progress[b.id] >= b.need) {
+      s.done.push(b.id);
+      completed.push(b);
+    }
+  });
   persist(s);
-  window.dispatchEvent(new CustomEvent('bounty-changed'));
+  if (completed.length > 0 || BOUNTIES.some((b) => b.target === monsterId)) {
+    window.dispatchEvent(new CustomEvent('bounty-changed'));
+  }
   return completed;
 }

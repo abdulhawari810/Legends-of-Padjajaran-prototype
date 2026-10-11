@@ -1,5 +1,12 @@
 # Changelog — Legends of Padjajaran (mmorpg-web)
 
+## 0.3.0 — Batch S–U + label nama
+- S: 3 bounty harian (elite/golem/troll), 5 achievement baru, statistik
+  map & skill, monster berlevel per zona (skala HP/atk)
+- T: potion 40% max HP, docs/QA.md, betulkan hitung monster README
+- U: 42 unit test (10 file: bounty/stats/enhance/quest/ach/skill/...)
+- Label nama: player (job+Lv), tiap monster (nama+Lv), Tetua Greenfield
+
 ## 0.2.0 — Batch H–P
 - H: bounty harian elite, penalti mati 5% gold
 - I: map Dark Forest + portal, 3 monster, 3 quest

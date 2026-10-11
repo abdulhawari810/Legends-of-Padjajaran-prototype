@@ -23,7 +23,7 @@ export interface ItemDef {
 }
 
 export const ITEMS: ItemDef[] = [
-  { id: 'potion-s', name: 'Small Potion', type: 'consumable', desc: 'Pulihkan 50 HP.', heal: 50 },
+  { id: 'potion-s', name: 'Small Potion', type: 'consumable', desc: 'Pulihkan 40% HP (min 50).', heal: 50 },
   {
     id: 'sword-wood',
     name: 'Wooden Sword',

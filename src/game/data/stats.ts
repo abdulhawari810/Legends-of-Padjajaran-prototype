@@ -1,17 +1,19 @@
 import { loadJSON, saveJSON } from './persistence';
 
-// Batch M: statistik global (semua job).
+// Batch M: statistik global (semua job). Batch S: +map dikunjungi & skill dipakai.
 export interface GameStats {
   kills: Record<string, number>;
   deaths: number;
   claims: number;
   maxLevel: number;
   playtimeSec: number;
+  visited: string[];
+  skillUses: number;
 }
 
 const KEY = 'mmorpg-stats-v1';
 
-const FALLBACK: GameStats = { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0 };
+const FALLBACK: GameStats = { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0 };
 
 export function getStats(): GameStats {
   try {
@@ -21,10 +23,12 @@ export function getStats(): GameStats {
       deaths: s.deaths ?? 0,
       claims: s.claims ?? 0,
       maxLevel: s.maxLevel ?? 1,
-      playtimeSec: s.playtimeSec ?? 0
+      playtimeSec: s.playtimeSec ?? 0,
+      visited: s.visited ?? [],
+      skillUses: s.skillUses ?? 0
     };
   } catch {
-    return { ...FALLBACK, kills: {} };
+    return { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0 };
   }
 }
 
@@ -66,6 +70,20 @@ export function setMaxLevel(lvl: number) {
 export function addPlaytime(sec: number) {
   const s = getStats();
   s.playtimeSec += sec;
+  persist(s);
+}
+
+export function visitMap(mapId: string) {
+  const s = getStats();
+  if (!s.visited.includes(mapId)) {
+    s.visited.push(mapId);
+    persist(s);
+  }
+}
+
+export function addSkillUse() {
+  const s = getStats();
+  s.skillUses += 1;
   persist(s);
 }
 

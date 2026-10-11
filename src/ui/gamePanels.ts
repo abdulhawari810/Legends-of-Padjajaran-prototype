@@ -1,6 +1,6 @@
 import { ITEMS, getItem } from '../game/data/items';
 import { snapshotQuests } from '../game/data/questState';
-import { BOUNTY_REWARD_EXP, BOUNTY_REWARD_GOLD, getBounty } from '../game/data/bounty';
+import { getBounties } from '../game/data/bounty';
 import { snapshotAchievements } from '../game/data/achievements';
 import { getCount, removeItem, snapshotInventory } from '../game/data/inventory';
 import { getGold } from '../game/data/currency';
@@ -134,7 +134,7 @@ export function initGamePanels() {
     const potionCount = document.getElementById('potion-count');
     if (potionCount) potionCount.textContent = `x${getCount('potion-s')}`;
     const goldEl = document.getElementById('gold');
-    if (goldEl) goldEl.textContent = `💰 ${getGold()}`;
+    if (goldEl) goldEl.textContent = `${getGold()}`;
   }
 
   gridClick();
@@ -184,12 +184,16 @@ export function initGamePanels() {
 
   function renderQuest() {
     const list = document.getElementById('quest-list')!;
-    const b = getBounty();
-    const bountyHtml = `<div class="quest-item ${b.done ? 'done' : ''}">
-          <b>🎯 Bounty Harian: Skeleton Elite</b>
-          <p>Kalahkan 1 Skeleton Elite hari ini (reset harian).</p>
-          <small>${b.done ? `✅ Selesai • +${BOUNTY_REWARD_GOLD}G +${BOUNTY_REWARD_EXP} EXP` : `⚔️ ${Math.min(b.progress, 1)}/1`}</small>
-        </div>`;
+    const bountyHtml = getBounties()
+      .map(
+        (b) =>
+          `<div class="quest-item ${b.done ? 'done' : ''}">
+          <b>🎯 ${b.name}</b>
+          <p>Bunuh ${b.need} ${b.target} hari ini (reset harian).</p>
+          <small>${b.done ? `✅ Selesai • +${b.gold}G +${b.exp} EXP` : `⚔️ ${Math.min(b.progress, b.need)}/${b.need}`}</small>
+        </div>`
+      )
+      .join('');
     const achHtml = snapshotAchievements()
       .map(
         (a) => `<div class="quest-item ${a.unlocked ? 'done' : 'locked'}">
@@ -241,12 +245,12 @@ export function initGamePanels() {
   });
   window.addEventListener('gold-changed', ((e: CustomEvent<number>) => {
     const goldEl = document.getElementById('gold');
-    if (goldEl) goldEl.textContent = `💰 ${e.detail}`;
+    if (goldEl) goldEl.textContent = `${e.detail}`;
   }) as EventListener);
 
   renderBag();
   const goldInit = document.getElementById('gold');
-  if (goldInit) goldInit.textContent = `💰 ${getGold()}`;
+  if (goldInit) goldInit.textContent = `${getGold()}`;
 
   renderBag();
 }

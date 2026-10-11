@@ -1,39 +1,50 @@
-import Phaser from 'phaser';
-import { MAP_DEF, getMapDef, type MapDefShape, type MapId } from '../data/map';
-import { MONSTERS } from '../data/monsters';
-import { Player } from '../entities/Player';
-import { Monster } from '../entities/Monster';
-import { Npc } from '../entities/Npc';
-import { VirtualInput } from '../input/VirtualInput';
-import { canClaim, claimReward, hasClaimable, registerKill, snapshotQuests } from '../data/questState';
-import { addItem, getCount } from '../data/inventory';
-import { addGold, getGold } from '../data/currency';
-import { rollDrops } from '../data/drops';
-import { getItem } from '../data/items';
-import { SHOP_BUY, SHOP_SELL, buyItem, sellItem } from '../data/shop';
-import { getSkill } from '../data/skills';
+import Phaser from "phaser";
+import { MAP_DEF, getMapDef, type MapDefShape, type MapId } from "../data/map";
+import { MONSTERS } from "../data/monsters";
+import { Player } from "../entities/Player";
+import { Monster } from "../entities/Monster";
+import { Npc } from "../entities/Npc";
+import { VirtualInput } from "../input/VirtualInput";
 import {
-  BOUNTY_REWARD_EXP,
-  BOUNTY_REWARD_GOLD,
-  getBounty,
-  registerEliteKill
-} from '../data/bounty';
+  canClaim,
+  claimReward,
+  hasClaimable,
+  registerKill,
+  snapshotQuests,
+} from "../data/questState";
+import { addItem, getCount } from "../data/inventory";
+import { addGold, getGold } from "../data/currency";
+import { rollDrops } from "../data/drops";
+import { getItem } from "../data/items";
+import { SHOP_BUY, SHOP_SELL, buyItem, sellItem } from "../data/shop";
+import { getSkill } from "../data/skills";
+import { worldText } from "../text";
+import { getBounties, registerKillBounty } from "../data/bounty";
 import {
   ENHANCE_MAX,
   enhanceCost,
   getEnhance,
-  tryEnhance
-} from '../data/enhance';
-import { getEquippedArmorId, getEquippedWeaponId } from '../data/equipment';
-import { getQuality } from '../data/settings';
+  tryEnhance,
+} from "../data/enhance";
+import { getEquippedArmorId, getEquippedWeaponId } from "../data/equipment";
+import { getQuality } from "../data/settings";
 import {
   addClaim,
   addDeath,
   addKill,
   addPlaytime,
-  setMaxLevel
-} from '../data/stats';
-import { checkClaims, checkEnhance, checkKills, checkLevel } from '../data/achievements';
+  setMaxLevel,
+  visitMap,
+} from "../data/stats";
+import {
+  checkClaims,
+  checkDeaths,
+  checkEnhance,
+  checkKills,
+  checkLevel,
+  checkRich,
+  checkTravel,
+} from "../data/achievements";
 import {
   sfxBoom,
   sfxClick,
@@ -47,16 +58,15 @@ import {
   sfxShootArrow,
   sfxShootFire,
   sfxSkill,
-  sfxSwing
-} from '../audio';
-import { loadMeta, loadPos, saveMeta, savePos } from '../data/save';
+  sfxSwing,
+} from "../audio";
+import { loadMeta, loadPos, saveMeta, savePos } from "../data/save";
 
 const INTERACT_DIST = 90;
 
 export class MapScene extends Phaser.Scene {
   private player!: Player;
   private npc: Npc | null = null;
-  private hudPos!: Phaser.GameObjects.Text;
   private hudKill!: Phaser.GameObjects.Text;
   private obstacles!: Phaser.Physics.Arcade.StaticGroup;
   private monsters: Monster[] = [];
@@ -71,21 +81,24 @@ export class MapScene extends Phaser.Scene {
   private saveAccum = 0;
   private healAccum = 0;
   private miniAccum = 0;
-  private mapId: MapId = 'greenfield';
+  private mapId: MapId = "greenfield";
   private mapDef: MapDefShape = MAP_DEF;
   private spawnOverride: { x: number; y: number } | null = null;
   private portalReadyAt = 0;
+  /** Batch target-lock: monster yang diklik + cincin merah. */
+  private locked: Monster | null = null;
+  private lockRing: Phaser.GameObjects.Graphics | null = null;
   private hitFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private dieFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private coinFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private levelFx!: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor() {
-    super('Map');
+    super("Map");
   }
 
   init(data?: { mapId?: string; spawn?: { x: number; y: number } }) {
-    this.mapDef = getMapDef(data?.mapId ?? 'greenfield');
+    this.mapDef = getMapDef(data?.mapId ?? "greenfield");
     this.mapId = this.mapDef.id;
     this.spawnOverride = data?.spawn ?? null;
     // reset state per map (scene di-restart saat pindah portal)
@@ -94,10 +107,20 @@ export class MapScene extends Phaser.Scene {
     this.healAccum = 0;
     this.npc = null;
     this.portalReadyAt = 0;
+    this.locked = null;
+    this.lockRing = null;
   }
 
   create() {
-    this.physics.world.setBounds(0, 0, this.mapDef.widthPx, this.mapDef.heightPx);
+    this.physics.world.setBounds(
+      0,
+      0,
+      this.mapDef.widthPx,
+      this.mapDef.heightPx
+    );
+    visitMap(this.mapId);
+    checkTravel();
+    window.dispatchEvent(new CustomEvent("target-hide"));
 
     this.createGround();
     this.createObstacles();
@@ -109,15 +132,21 @@ export class MapScene extends Phaser.Scene {
     );
 
     // Batch G: particle sekali-ledak (tanpa asset)
-    const fx = (tint: number, speedMin: number, speedMax: number, lifeMin: number, lifeMax: number) =>
-      this.add.particles(0, 0, 'part-dot', {
+    const fx = (
+      tint: number,
+      speedMin: number,
+      speedMax: number,
+      lifeMin: number,
+      lifeMax: number
+    ) =>
+      this.add.particles(0, 0, "part-dot", {
         speed: { min: speedMin, max: speedMax },
         angle: { min: 0, max: 360 },
         lifespan: { min: lifeMin, max: lifeMax },
         scale: { start: 1, end: 0 },
         quantity: 0,
         emitting: false,
-        tint
+        tint,
       });
     this.hitFx = fx(0xffffff, 60, 180, 150, 300).setDepth(40);
     this.dieFx = fx(0x9ca3af, 40, 130, 250, 450).setDepth(40);
@@ -133,14 +162,20 @@ export class MapScene extends Phaser.Scene {
     });
     this.createPortals();
 
-    this.player = new Player(this, this.mapDef.playerSpawn.x, this.mapDef.playerSpawn.y);
+    this.player = new Player(
+      this,
+      this.mapDef.playerSpawn.x,
+      this.mapDef.playerSpawn.y
+    );
     // Batch C: restore posisi + job + killCount terakhir (posisi per map)
     try {
       const meta = loadMeta();
       this.killCount = meta.killCount ?? 0;
       if (meta.currentJob && meta.currentJob !== this.player.jobId) {
         this.player.setJob(meta.currentJob);
-        window.dispatchEvent(new CustomEvent('select-job-sync', { detail: meta.currentJob }));
+        window.dispatchEvent(
+          new CustomEvent("select-job-sync", { detail: meta.currentJob })
+        );
       }
       if (this.spawnOverride) {
         this.player.setPosition(this.spawnOverride.x, this.spawnOverride.y);
@@ -169,56 +204,60 @@ export class MapScene extends Phaser.Scene {
     if (this.mapDef.npc) {
       this.npc = new Npc(this, this.mapDef.npc.x, this.mapDef.npc.y);
       this.physics.add.collider(this.player, this.npc);
+      worldText(
+        this,
+        this.mapDef.npc.x,
+        this.mapDef.npc.y - 72,
+        "🧙 Tetua Greenfield",
+        {
+          fontSize: "11px",
+          color: "#f5d67b",
+          fontStyle: "bold",
+          backgroundColor: "rgba(0,0,0,0.45)",
+          padding: { x: 4, y: 1 },
+        }
+      )
+        .setOrigin(0.5)
+        .setDepth(30);
       this.refreshNpcBubble();
     }
 
     this.bindGlobalListeners();
 
-    this.attackKey = this.input.keyboard!.addKey('SPACE');
-    this.skillKeyQ = this.input.keyboard!.addKey('Q');
-    this.skillKey1 = this.input.keyboard!.addKey('ONE');
-    this.skillKey2 = this.input.keyboard!.addKey('TWO');
-    this.skillKey3 = this.input.keyboard!.addKey('THREE');
-    this.interactKey = this.input.keyboard!.addKey('E');
+    this.attackKey = this.input.keyboard!.addKey("SPACE");
+    this.skillKeyQ = this.input.keyboard!.addKey("Q");
+    this.skillKey1 = this.input.keyboard!.addKey("ONE");
+    this.skillKey2 = this.input.keyboard!.addKey("TWO");
+    this.skillKey3 = this.input.keyboard!.addKey("THREE");
+    this.interactKey = this.input.keyboard!.addKey("E");
+
+    // tap/klik monster untuk target manual (event milik scene, auto-lepas saat restart)
+    this.input.on("pointerdown", this.onWorldTap);
 
     // projectile vs monster didaftarkan per-monster di spawnMonster()
     // (bulk overlap dengan array basi setelah respawn/filter)
 
-    this.cameras.main.setBounds(0, 0, this.mapDef.widthPx, this.mapDef.heightPx);
+    this.cameras.main.setBounds(
+      0,
+      0,
+      this.mapDef.widthPx,
+      this.mapDef.heightPx
+    );
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.fitWidthZoom();
     // kanvas RESIZE: zoom ulang tiap ukuran layar berubah
-    this.scale.on('resize', this.onScaleResize);
+    this.scale.on("resize", this.onScaleResize);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off('resize', this.onScaleResize);
+      this.scale.off("resize", this.onScaleResize);
     });
 
-    this.add
-      .text(16, 16, `${this.mapDef.name} — WASD/Panah/Joystick jalan, Spasi serang, Q/1 skill`, {
-        fontSize: '14px',
-        color: '#ffffff',
-        backgroundColor: 'rgba(0,0,0,0.45)',
-        padding: { x: 8, y: 6 }
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
-
-    this.hudPos = this.add
-      .text(16, 48, '', {
-        fontSize: '12px',
-        color: '#9ca3af',
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        padding: { x: 8, y: 4 }
-      })
-      .setScrollFactor(0)
-      .setDepth(100);
-
     this.hudKill = this.add
-      .text(16, 74, `Kill: ${this.killCount}`, {
-        fontSize: '12px',
-        color: '#fbbf24',
-        backgroundColor: 'rgba(0,0,0,0.35)',
-        padding: { x: 8, y: 4 }
+      .text(16, 48, `Kill: ${this.killCount}`, {
+        fontSize: "12px",
+        fontFamily: "'system-ui', sans-serif",
+        color: "#fbbf24",
+        backgroundColor: "rgba(0,0,0,0.35)",
+        padding: { x: 8, y: 4 },
       })
       .setScrollFactor(0)
       .setDepth(100);
@@ -226,20 +265,34 @@ export class MapScene extends Phaser.Scene {
 
   private spawnMonster(monsterId: string) {
     const def = MONSTERS.find((m) => m.id === monsterId)!;
-    const spot = this.mapDef.monsterSpawns.find((s) => s.monsterId === monsterId)!;
-    const x = Phaser.Math.Clamp(spot.x + Phaser.Math.Between(-80, 80), 48, this.mapDef.widthPx - 48);
-    const y = Phaser.Math.Clamp(spot.y + Phaser.Math.Between(-80, 80), 64, this.mapDef.heightPx - 48);
-    const m = new Monster(this, x, y, def);
+    const spot = this.mapDef.monsterSpawns.find(
+      (s) => s.monsterId === monsterId
+    )!;
+    const x = Phaser.Math.Clamp(
+      spot.x + Phaser.Math.Between(-80, 80),
+      48,
+      this.mapDef.widthPx - 48
+    );
+    const y = Phaser.Math.Clamp(
+      spot.y + Phaser.Math.Between(-80, 80),
+      64,
+      this.mapDef.heightPx - 48
+    );
+    const m = new Monster(this, x, y, def, spot.level ?? 1);
     this.monsters.push(m);
     this.physics.add.collider(m, this.obstacles);
     // separasi: monster tidak numpuk + respawn tetap tabrakan dengan player
-    this.physics.add.collider(m, this.monsters.filter((o) => o !== m && o.alive));
+    this.physics.add.collider(
+      m,
+      this.monsters.filter((o) => o !== m && o.alive)
+    );
     // overlap projectile per-monster (jangan pakai array sekaligus:
     // referensi array basi setelah filter/reassign sehingga respawn tak kena hit)
-    this.physics.add.overlap(
-      this.projectiles,
-      m,
-      (proj, target) => this.onProjectileHit(proj as Phaser.Physics.Arcade.Image, target as Monster)
+    this.physics.add.overlap(this.projectiles, m, (proj, target) =>
+      this.onProjectileHit(
+        proj as Phaser.Physics.Arcade.Image,
+        target as Monster
+      )
     );
     if (this.player) {
       this.physics.add.collider(this.player, m);
@@ -248,17 +301,22 @@ export class MapScene extends Phaser.Scene {
       const now = this.time.now;
       m.nextAoEAt = now + 6000;
       m.nextSummonAt = now + 12000;
-      const txt = this.add
-        .text(x, y - 70, `💀 ${def.name} muncul!`, {
-          fontSize: '15px',
-          color: '#c084fc',
-          fontStyle: 'bold',
-          backgroundColor: 'rgba(0,0,0,0.55)',
-          padding: { x: 8, y: 4 }
-        })
+      const txt = worldText(this, x, y - 70, `💀 ${def.name} muncul!`, {
+        fontSize: "15px",
+        color: "#c084fc",
+        fontStyle: "bold",
+        backgroundColor: "rgba(0,0,0,0.55)",
+        padding: { x: 8, y: 4 },
+      })
         .setOrigin(0.5)
         .setDepth(60);
-      this.tweens.add({ targets: txt, y: y - 90, alpha: 0, duration: 2000, onComplete: () => txt.destroy() });
+      this.tweens.add({
+        targets: txt,
+        y: y - 90,
+        alpha: 0,
+        duration: 2000,
+        onComplete: () => txt.destroy(),
+      });
     }
   }
 
@@ -289,57 +347,78 @@ export class MapScene extends Phaser.Scene {
       });
       this.globalCleanups = [];
     });
-    this.onWin('player-died', () => this.showDeath());
-    this.onDom('respawn-btn', 'click', () => this.respawnPlayer());
-    this.onWin('quest-changed', () => this.refreshNpcBubble());
-    this.onWin('bounty-changed', () => {
+    this.onWin("player-died", () => this.showDeath());
+    this.onDom("respawn-btn", "click", () => this.respawnPlayer());
+    this.onWin("quest-changed", () => this.refreshNpcBubble());
+    this.onWin("bounty-changed", () => {
       this.refreshNpcBubble();
-      if (!document.getElementById('npc-panel')?.classList.contains('hidden')) this.renderNpc();
+      if (!document.getElementById("npc-panel")?.classList.contains("hidden"))
+        this.renderNpc();
     });
-    this.onWin('achievement-unlocked', ((e: CustomEvent<{ name: string; gold: number }>) => {
+    this.onWin("gold-changed", ((e: CustomEvent<number>) => {
+      checkRich(e.detail ?? 0);
+    }) as EventListener);
+    this.onWin("achievement-unlocked", ((
+      e: CustomEvent<{ name: string; gold: number }>
+    ) => {
       const d = e.detail;
       sfxQuest();
-      const txt = this.add
-        .text(this.player.x, this.player.y - 64, `🏆 ${d.name} +${d.gold}G`, {
-          fontSize: '14px',
-          color: '#fbbf24',
-          fontStyle: 'bold',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          padding: { x: 6, y: 3 }
-        })
+      this.chat(`🏆 Pencapaian: ${d.name} (+${d.gold}G)`);
+      const txt = worldText(
+        this,
+        this.player.x,
+        this.player.y - 64,
+        `🏆 ${d.name} +${d.gold}G`,
+        {
+          fontSize: "14px",
+          color: "#fbbf24",
+          fontStyle: "bold",
+          backgroundColor: "rgba(0,0,0,0.6)",
+          padding: { x: 6, y: 3 },
+        }
+      )
         .setOrigin(0.5)
         .setDepth(60);
-      this.tweens.add({ targets: txt, y: this.player.y - 86, alpha: 0, duration: 1600, onComplete: () => txt.destroy() });
+      this.tweens.add({
+        targets: txt,
+        y: this.player.y - 86,
+        alpha: 0,
+        duration: 1600,
+        onComplete: () => txt.destroy(),
+      });
     }) as EventListener);
-    this.onWin('claim-quest', ((e: CustomEvent<string>) => this.claimQuest(e.detail)) as EventListener);
-    this.onDom('interact-btn', 'click', () => this.openNpc());
-    this.onDom('npc-close', 'click', () =>
-      document.getElementById('npc-panel')?.classList.add('hidden')
+    this.onWin("claim-quest", ((e: CustomEvent<string>) =>
+      this.claimQuest(e.detail)) as EventListener);
+    this.onDom("interact-btn", "click", () => this.openNpc());
+    this.onDom("npc-close", "click", () =>
+      document.getElementById("npc-panel")?.classList.add("hidden")
     );
-    this.onDom('npc-list', 'pointerdown', ((e: Event) => {
+    this.onDom("npc-list", "pointerdown", ((e: Event) => {
       const el = e.target as HTMLElement;
-      const claimBtn = el.closest<HTMLButtonElement>('button[data-claim]');
+      const claimBtn = el.closest<HTMLButtonElement>("button[data-claim]");
       if (claimBtn) {
         e.preventDefault();
-        window.dispatchEvent(new CustomEvent('claim-quest', { detail: claimBtn.dataset.claim }));
+        window.dispatchEvent(
+          new CustomEvent("claim-quest", { detail: claimBtn.dataset.claim })
+        );
         return;
       }
-      const buyBtn = el.closest<HTMLButtonElement>('button[data-buy]');
+      const buyBtn = el.closest<HTMLButtonElement>("button[data-buy]");
       if (buyBtn && !buyBtn.disabled) {
         e.preventDefault();
         this.buyFromShop(buyBtn.dataset.buy!);
         return;
       }
-      const sellBtn = el.closest<HTMLButtonElement>('button[data-sell]');
+      const sellBtn = el.closest<HTMLButtonElement>("button[data-sell]");
       if (sellBtn && !sellBtn.disabled) {
         e.preventDefault();
         this.sellToShop(sellBtn.dataset.sell!);
         return;
       }
-      const enhBtn = el.closest<HTMLButtonElement>('button[data-enhance]');
+      const enhBtn = el.closest<HTMLButtonElement>("button[data-enhance]");
       if (enhBtn && !enhBtn.disabled) {
         e.preventDefault();
-        this.enhanceFromNpc(enhBtn.dataset.enhance as 'weapon' | 'armor');
+        this.enhanceFromNpc(enhBtn.dataset.enhance as "weapon" | "armor");
       }
     }) as EventListener);
   }
@@ -348,13 +427,33 @@ export class MapScene extends Phaser.Scene {
     this.fitWidthZoom();
   };
 
-  /** Kamera penuhi lebar layar: selalu 640 world px selebar layar, tanpa letterbox. */
+  /** Lebar pandang dunia (world px selebar layar). Makin besar = makin jauh. */
+  private static readonly VIEW_WIDTH = 1200;
+
+  /** Tinggi HUD atas (agar dunia tidak ke-render di belakangnya). */
+  private topUiHeight(): number {
+    try {
+      let m = 0;
+      ["#top-hud", "#target-frame"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) m = Math.max(m, r.bottom);
+      });
+      return Math.min(m, this.scale.height * 0.4);
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Kamera penuhi layar tanpa letterbox; viewport mulai di bawah HUD. */
   private fitWidthZoom() {
     const w = this.scale.width;
     const h = this.scale.height;
     if (w <= 0 || h <= 0) return;
-    this.cameras.main.setViewport(0, 0, w, h);
-    this.cameras.main.setZoom(w / 640);
+    const top = Math.round(this.topUiHeight());
+    this.cameras.main.setViewport(0, top, w, Math.max(1, h - top));
+    this.cameras.main.setZoom(w / MapScene.VIEW_WIDTH);
   }
 
   private createPortals() {
@@ -365,13 +464,12 @@ export class MapScene extends Phaser.Scene {
       g.lineStyle(3, 0x22d3ee, 0.9);
       g.strokeCircle(p.x, p.y, p.r);
       const dest = getMapDef(p.to);
-      this.add
-        .text(p.x, p.y + p.r + 12, `➡ ${dest.name}`, {
-          fontSize: '12px',
-          color: '#67e8f9',
-          backgroundColor: 'rgba(0,0,0,0.55)',
-          padding: { x: 6, y: 3 }
-        })
+      worldText(this, p.x, p.y + p.r + 12, `➡ ${dest.name}`, {
+        fontSize: "12px",
+        color: "#67e8f9",
+        backgroundColor: "rgba(0,0,0,0.55)",
+        padding: { x: 6, y: 3 },
+      })
         .setOrigin(0.5)
         .setDepth(2);
     });
@@ -383,39 +481,131 @@ export class MapScene extends Phaser.Scene {
     if (this.player.dead) return;
     if (this.time.now < this.portalReadyAt) return;
     for (const p of this.mapDef.portals) {
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y) <= p.r) {
+      if (
+        Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y) <=
+        p.r
+      ) {
         try {
           savePos(this.player.x, this.player.y, this.mapId);
           this.player.saveCurrentJob();
         } catch {
           // abaikan
         }
+        this.chat(`➡ Memasuki ${getMapDef(p.to).name}...`);
         this.scene.restart({ mapId: p.to, spawn: { ...p.spawn } });
         return;
       }
     }
   }
 
+  /** Batch UI: umumkan ke panel chat (didengar ui/chat). */
+  private chat(text: string) {
+    window.dispatchEvent(
+      new CustomEvent("chat", {
+        detail: { from: "System", text, system: true },
+      })
+    );
+  }
+
+  /** Tap/klik monster = kunci target manual (tap lagi / tanah kosong = lepas). */
+  private onWorldTap = (pointer: Phaser.Input.Pointer) => {
+    if (pointer.rightButtonDown()) return;
+    const wx = pointer.worldX;
+    const wy = pointer.worldY;
+    let hit: Monster | null = null;
+    for (const m of this.monsters) {
+      if (!m.alive) continue;
+      const r = m.displayWidth / 2 + 10;
+      if (Phaser.Math.Distance.Between(wx, wy, m.x, m.y) <= r) {
+        hit = m;
+        break;
+      }
+    }
+    if (hit) {
+      if (this.locked === hit) this.unlockTarget();
+      else this.lockTarget(hit);
+    } else {
+      this.unlockTarget();
+    }
+  };
+
+  private lockTarget(m: Monster, silent = false) {
+    this.clearLock();
+    this.locked = m;
+    this.lockRing = this.add.graphics().setDepth(2);
+    if (!silent) sfxClick();
+    window.dispatchEvent(
+      new CustomEvent('target-show', {
+        detail: { id: m.def.id, name: m.def.name, level: m.level, hp: m.hp, maxHp: m.maxHp, locked: true }
+      })
+    );
+  }
+
+  private clearLock() {
+    this.locked = null;
+    if (this.lockRing) {
+      this.lockRing.destroy();
+      this.lockRing = null;
+    }
+  }
+
+  private unlockTarget() {
+    this.clearLock();
+    window.dispatchEvent(new CustomEvent('target-hide'));
+  }
+
+  /** Target serangan: lock manual dulu (bila valid), lalu terdekat otomatis. */
+  private pickTarget(range: number, dir: { x: number; y: number }): Monster | null {
+    const facingOk = (m: Monster) => {
+      const dx = m.x - this.player.x;
+      const dy = m.y - this.player.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return (dx / len) * dir.x + (dy / len) * dir.y > 0.2;
+    };
+    if (this.locked && this.locked.alive) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.locked.x, this.locked.y);
+      if (d <= range && facingOk(this.locked)) return this.locked;
+    }
+    let best: Monster | null = null;
+    let bestDist = Infinity;
+    for (const m of this.monsters) {
+      if (!m.alive) continue;
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y);
+      if (d <= range && d < bestDist && facingOk(m)) {
+        bestDist = d;
+        best = m;
+      }
+    }
+    return best;
+  }
+
   private showDeath() {
-    document.getElementById('death-overlay')?.classList.remove('hidden');
-    document.getElementById('interact-btn')?.classList.add('hidden');
+    document.getElementById("death-overlay")?.classList.remove("hidden");
+    document.getElementById("interact-btn")?.classList.add("hidden");
     // Batch H: penalti mati 5% gold
+    let loss = 0;
     try {
       const g = getGold();
-      const loss = Math.floor(g * 0.05);
+      loss = Math.floor(g * 0.05);
       if (loss > 0) addGold(-loss);
-      const el = document.getElementById('death-penalty');
-      if (el) el.textContent = loss > 0 ? `Penalti mati: -${loss}G (5%)` : 'Tanpa penalti (kantung kosong).';
+      const el = document.getElementById("death-penalty");
+      if (el)
+        el.textContent =
+          loss > 0
+            ? `Penalti mati: -${loss}G (5%)`
+            : "Tanpa penalti (kantung kosong).";
     } catch {
       // abaikan
     }
     addDeath();
+    checkDeaths();
+    this.chat(`☠️ Kamu mati${loss > 0 ? ` (-${loss}G)` : ""}. Semangat!`);
     sfxPlayerDie();
     this.cameras.main.shake(250, 0.01);
   }
 
   private respawnPlayer() {
-    document.getElementById('death-overlay')?.classList.add('hidden');
+    document.getElementById("death-overlay")?.classList.add("hidden");
     this.player.respawn(this.mapDef.playerSpawn.x, this.mapDef.playerSpawn.y);
     try {
       savePos(this.player.x, this.player.y, this.mapId);
@@ -427,7 +617,14 @@ export class MapScene extends Phaser.Scene {
 
   private isNearNpc(): boolean {
     if (!this.npc || !this.player || this.player.dead) return false;
-    return Phaser.Math.Distance.Between(this.player.x, this.player.y, this.npc.x, this.npc.y) <= INTERACT_DIST;
+    return (
+      Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.npc.x,
+        this.npc.y
+      ) <= INTERACT_DIST
+    );
   }
 
   private refreshNpcBubble() {
@@ -439,52 +636,86 @@ export class MapScene extends Phaser.Scene {
 
   private openNpc() {
     if (!this.isNearNpc()) return;
-    ['char-panel', 'bag-panel', 'quest-panel'].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
-    const panel = document.getElementById('npc-panel')!;
-    panel.classList.remove('hidden');
+    ["char-panel", "bag-panel", "quest-panel"].forEach((id) =>
+      document.getElementById(id)?.classList.add("hidden")
+    );
+    const panel = document.getElementById("npc-panel")!;
+    panel.classList.remove("hidden");
     this.renderNpc();
   }
 
   private renderNpc() {
-    const list = document.getElementById('npc-list')!;
+    const list = document.getElementById("npc-list")!;
     const questsHtml = snapshotQuests()
       .map((q) => {
         if (!q.unlocked) {
           return `<div class="quest-item locked"><b>🔒 ${q.title}</b><p>${q.desc}</p><small>Selesaikan quest sebelumnya dulu</small></div>`;
         }
-        const status = q.claimed ? '✅ Selesai' : q.done ? '🎁 Siap klaim' : `⚔️ ${Math.min(q.progress, q.killCount)}/${q.killCount}`;
-        const btn = q.claimed
-          ? ''
+        const status = q.claimed
+          ? "✅ Selesai"
           : q.done
-            ? `<button class="bag-btn" data-claim="${q.id}">Klaim +${q.rewardExp} EXP${q.rewardItemId ? ' + 🎁' : ''}</button>`
-            : `<small>Bunuh ${q.killTarget} (${q.progress}/${q.killCount})</small>`;
+          ? "🎁 Siap klaim"
+          : `⚔️ ${Math.min(q.progress, q.killCount)}/${q.killCount}`;
+        const btn = q.claimed
+          ? ""
+          : q.done
+          ? `<button class="bag-btn" data-claim="${q.id}">Klaim +${
+              q.rewardExp
+            } EXP${q.rewardItemId ? " + 🎁" : ""}</button>`
+          : `<small>Bunuh ${q.killTarget} (${q.progress}/${q.killCount})</small>`;
         return `<div class="quest-item"><b>${q.title}</b><p>${q.desc}</p><small>${status}</small><div>${btn}</div></div>`;
       })
-      .join('');
+      .join("");
     const buyHtml = SHOP_BUY.map((s) => {
       const def = getItem(s.id);
-      return `<div class="quest-item"><b>🛒 ${def?.name ?? s.id}</b><p>${def?.desc ?? ''}</p><div><button class="bag-btn" data-buy="${s.id}">Beli ${s.price}G</button></div></div>`;
-    }).join('');
+      return `<div class="quest-item"><b>🛒 ${def?.name ?? s.id}</b><p>${
+        def?.desc ?? ""
+      }</p><div><button class="bag-btn" data-buy="${s.id}">Beli ${
+        s.price
+      }G</button></div></div>`;
+    }).join("");
     const sellHtml = SHOP_SELL.map((s) => {
       const def = getItem(s.id);
       const n = getCount(s.id);
-      return `<div class="quest-item"><b>💰 Jual ${def?.name ?? s.id} (x${n})</b><div><button class="bag-btn" data-sell="${s.id}" ${n <= 0 ? 'disabled' : ''}>Jual +${s.price}G</button></div></div>`;
-    }).join('');
-    const b = getBounty();
-    const bountyHtml = `<div class="quest-item ${b.done ? 'done' : ''}"><b>🎯 Bounty Harian: Skeleton Elite</b><p>Kalahkan 1 Skeleton Elite hari ini.</p><small>${b.done ? `✅ Selesai (+${BOUNTY_REWARD_GOLD}G +${BOUNTY_REWARD_EXP} EXP)` : `⚔️ ${Math.min(b.progress, 1)}/1`}</small></div>`;
-    const enhanceHtml = (['weapon', 'armor'] as Array<'weapon' | 'armor'>)
+      return `<div class="quest-item"><b>💰 Jual ${
+        def?.name ?? s.id
+      } (x${n})</b><div><button class="bag-btn" data-sell="${s.id}" ${
+        n <= 0 ? "disabled" : ""
+      }>Jual +${s.price}G</button></div></div>`;
+    }).join("");
+    const bounties = getBounties();
+    const bountyHtml = bounties
+      .map(
+        (b) =>
+          `<div class="quest-item ${b.done ? "done" : ""}"><b>🎯 ${
+            b.name
+          }</b><p>Bunuh ${b.need} ${b.target} hari ini.</p><small>${
+            b.done
+              ? `✅ Selesai (+${b.gold}G +${b.exp} EXP)`
+              : `⚔️ ${Math.min(b.progress, b.need)}/${b.need}`
+          }</small></div>`
+      )
+      .join("");
+    const enhanceHtml = (["weapon", "armor"] as Array<"weapon" | "armor">)
       .map((slot) => {
         const lvl = getEnhance(slot);
-        const equipped = slot === 'weapon' ? getEquippedWeaponId() : getEquippedArmorId();
+        const equipped =
+          slot === "weapon" ? getEquippedWeaponId() : getEquippedArmorId();
         const def = equipped ? getItem(equipped) : undefined;
-        const label = slot === 'weapon' ? '🔫 Senjata' : '🛡️ Armor';
+        const label = slot === "weapon" ? "🔫 Senjata" : "🛡️ Armor";
         const cost = enhanceCost(slot);
         const btn = cost
-          ? `<button class="bag-btn" data-enhance="${slot}">Tempa +${lvl + 1} (${cost.gold}G${cost.gel > 0 ? ` + ${cost.gel} Gel` : ''})</button>`
+          ? `<button class="bag-btn" data-enhance="${slot}">Tempa +${
+              lvl + 1
+            } (${cost.gold}G${
+              cost.gel > 0 ? ` + ${cost.gel} Gel` : ""
+            })</button>`
           : `<small>MAX +${ENHANCE_MAX} ✓</small>`;
-        return `<div class="quest-item"><b>${label}: ${def?.name ?? '-'} +${lvl}</b><div>${btn}</div></div>`;
+        return `<div class="quest-item"><b>${label}: ${
+          def?.name ?? "-"
+        } +${lvl}</b><div>${btn}</div></div>`;
       })
-      .join('');
+      .join("");
     list.innerHTML =
       `<div class="char-section"><b>Quest</b></div>${questsHtml}` +
       `<div class="char-section"><b>Bounty</b></div>${bountyHtml}` +
@@ -494,10 +725,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   private shopMsg(msg: string, ok: boolean) {
-    const el = document.getElementById('shop-msg');
+    const el = document.getElementById("shop-msg");
     if (el) {
       el.textContent = msg;
-      el.style.color = ok ? '#4ade80' : '#ef4444';
+      el.style.color = ok ? "#4ade80" : "#ef4444";
     }
   }
 
@@ -506,7 +737,7 @@ export class MapScene extends Phaser.Scene {
     const res = buyItem(itemId);
     if (res.ok) sfxCoin();
     else sfxClick();
-    this.shopMsg(res.ok ? 'Terbeli ✓' : (res.reason ?? 'Gagal beli'), res.ok);
+    this.shopMsg(res.ok ? "Terbeli ✓" : res.reason ?? "Gagal beli", res.ok);
     this.renderNpc();
   }
 
@@ -515,11 +746,11 @@ export class MapScene extends Phaser.Scene {
     const res = sellItem(itemId);
     if (res.ok) sfxCoin();
     else sfxClick();
-    this.shopMsg(res.ok ? 'Terjual ✓' : (res.reason ?? 'Gagal jual'), res.ok);
+    this.shopMsg(res.ok ? "Terjual ✓" : res.reason ?? "Gagal jual", res.ok);
     this.renderNpc();
   }
 
-  private enhanceFromNpc(slot: 'weapon' | 'armor') {
+  private enhanceFromNpc(slot: "weapon" | "armor") {
     if (!this.isNearNpc()) return;
     const res = tryEnhance(slot);
     if (res.ok) {
@@ -529,7 +760,10 @@ export class MapScene extends Phaser.Scene {
     } else {
       sfxClick();
     }
-    this.shopMsg(res.ok ? `Tempa +${getEnhance(slot)} ✓` : (res.reason ?? 'Gagal tempa'), res.ok);
+    this.shopMsg(
+      res.ok ? `Tempa +${getEnhance(slot)} ✓` : res.reason ?? "Gagal tempa",
+      res.ok
+    );
     this.renderNpc();
   }
 
@@ -540,6 +774,10 @@ export class MapScene extends Phaser.Scene {
     if (!reward) return;
     if (reward.itemId) addItem(reward.itemId, 1);
     sfxQuest();
+    const qdef = snapshotQuests().find((q) => q.id === questId);
+    this.chat(
+      `📜 Quest selesai: ${qdef?.title ?? questId} (+${reward.exp} EXP)`
+    );
     const leveled = this.player.addExp(reward.exp);
     addClaim();
     checkClaims();
@@ -548,6 +786,7 @@ export class MapScene extends Phaser.Scene {
       checkLevel(this.player.level);
       sfxLevelUp();
       this.levelFx.explode(this.fxN(18), this.player.x, this.player.y);
+      this.chat(`⬆️ Naik ke Lv.${this.player.level}!`);
     }
     // addExp sudah save job; pastikan posisi ikut tersimpan
     try {
@@ -555,12 +794,24 @@ export class MapScene extends Phaser.Scene {
     } catch {
       // abaikan
     }
-    const txt = this.add.text(this.npc.x, this.npc.y - 70, `+${reward.exp} EXP${reward.itemId ? ' + 🎁' : ''}`, {
-      fontSize: '14px',
-      color: '#4ade80',
-      fontStyle: 'bold'
-    }).setDepth(60);
-    this.tweens.add({ targets: txt, y: this.npc.y - 90, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
+    const txt = worldText(
+      this,
+      this.npc.x,
+      this.npc.y - 70,
+      `+${reward.exp} EXP${reward.itemId ? " + 🎁" : ""}`,
+      {
+        fontSize: "14px",
+        color: "#4ade80",
+        fontStyle: "bold",
+      }
+    ).setDepth(60);
+    this.tweens.add({
+      targets: txt,
+      y: this.npc.y - 90,
+      alpha: 0,
+      duration: 1200,
+      onComplete: () => txt.destroy(),
+    });
     void leveled;
     this.refreshNpcBubble();
     this.renderNpc();
@@ -577,15 +828,35 @@ export class MapScene extends Phaser.Scene {
       // Warrior: tebasan melee di depan
       const cx = this.player.x + dir.x * 40;
       const cy = this.player.y + dir.y * 40;
-      const slash = this.add.image(cx, cy, 'slash').setDepth(this.player.depth + 0.2);
-      slash.setAngle(dir.x === -1 ? 180 : dir.y === -1 ? -90 : dir.y === 1 ? 90 : 0);
+      const slash = this.add
+        .image(cx, cy, "slash")
+        .setDepth(this.player.depth + 0.2);
+      slash.setAngle(
+        dir.x === -1 ? 180 : dir.y === -1 ? -90 : dir.y === 1 ? 90 : 0
+      );
       slash.setScale(0.9);
-      this.tweens.add({ targets: slash, alpha: 0, scale: 1.3, duration: 160, onComplete: () => slash.destroy() });
+      this.tweens.add({
+        targets: slash,
+        alpha: 0,
+        scale: 1.3,
+        duration: 160,
+        onComplete: () => slash.destroy(),
+      });
       sfxSwing();
 
       const { dmg, crit } = this.player.rollDamage();
-      this.monsters
-        .filter((m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= this.player.attackRange + 14)
+      const victims = this.monsters
+        .filter(
+          (m) =>
+            m.alive &&
+            Phaser.Math.Distance.Between(
+              this.player.x,
+              this.player.y,
+              m.x,
+              m.y
+            ) <=
+              this.player.attackRange + 14
+        )
         .filter((m) => {
           // hanya yang di depan (dot product > 0.2)
           const dx = m.x - this.player.x;
@@ -593,27 +864,27 @@ export class MapScene extends Phaser.Scene {
           const len = Math.hypot(dx, dy) || 1;
           return (dx / len) * dir.x + (dy / len) * dir.y > 0.2;
         })
-        .forEach((m) => this.damageMonster(m, dmg, crit));
+        .sort(
+          (a, b) =>
+            Phaser.Math.Distance.Between(this.player.x, this.player.y, a.x, a.y) -
+            Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y)
+        );
+      // basic attack menghubungkan panel + cincin ke korban terdekat
+      if (victims.length > 0 && (!this.locked || !this.locked.alive)) {
+        this.lockTarget(victims[0], true);
+      }
+      victims.forEach((m) => this.damageMonster(m, dmg, crit));
     } else {
-      // Mage/Archer: auto-target ke monster terdekat di depan (homing).
+      // Mage/Archer: target manual (lock) dulu, lalu otomatis terdekat di depan.
       // Syarat: harus menghadap monster (dot > 0.2), kalau membelakangi tidak bisa menyerang.
       const range = this.player.attackRange;
-      let target: Monster | null = null;
-      let bestDist = Infinity;
-      for (const m of this.monsters) {
-        if (!m.alive) continue;
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y);
-        if (d <= range && d < bestDist) {
-          bestDist = d;
-          target = m;
-        }
-      }
+      const target = this.pickTarget(range, dir);
       if (!target) return;
+      // basic attack menghubungkan panel + cincin (diam-diam bila belum ada lock)
+      if (!this.locked || !this.locked.alive) this.lockTarget(target, true);
       const dx = target.x - this.player.x;
       const dy = target.y - this.player.y;
       const len = Math.hypot(dx, dy) || 1;
-      const dot = (dx / len) * dir.x + (dy / len) * dir.y;
-      if (dot <= 0.2) return; // membelakangi / di samping: gagal serang
       const nx = dx / len;
       const ny = dy / len;
       const proj = this.projectiles.create(
@@ -624,26 +895,26 @@ export class MapScene extends Phaser.Scene {
       proj.setDepth(10 + proj.y * 0.01 + 0.2);
       proj.setActive(true).setVisible(true);
       const { dmg, crit } = this.player.rollDamage();
-      proj.setData('dmg', dmg);
-      proj.setData('crit', crit);
-      proj.setData('startX', proj.x);
-      proj.setData('startY', proj.y);
-      proj.setData('range', range);
-      proj.setData('target', target);
-      const speed = this.player.jobId === 'mage' ? 320 : 440;
-      proj.setData('speed', speed);
+      proj.setData("dmg", dmg);
+      proj.setData("crit", crit);
+      proj.setData("startX", proj.x);
+      proj.setData("startY", proj.y);
+      proj.setData("range", range);
+      proj.setData("target", target);
+      const speed = this.player.jobId === "mage" ? 320 : 440;
+      proj.setData("speed", speed);
       // pastikan body ikut aktif setelah create dari group
       if (proj.body) proj.body.reset(proj.x, proj.y);
       proj.setVelocity(nx * speed, ny * speed);
       proj.setAngle((Math.atan2(ny, nx) * 180) / Math.PI);
-      if (this.player.jobId === 'mage') sfxShootFire();
+      if (this.player.jobId === "mage") sfxShootFire();
       else sfxShootArrow();
     }
   }
 
   /** Batch L: skala jumlah partikel (low = setengah). */
   private fxN(n: number): number {
-    if (getQuality() === 'low') return Math.max(1, Math.ceil(n / 2));
+    if (getQuality() === "low") return Math.max(1, Math.ceil(n / 2));
     return n;
   }
 
@@ -652,7 +923,12 @@ export class MapScene extends Phaser.Scene {
     // AoE: tiap 9 dtk bila player < 220px. Lingkaran merah 0.9 dtk, lalu boom r90.
     if (now >= m.nextAoEAt) {
       m.nextAoEAt = now + 9000;
-      const dist = Phaser.Math.Distance.Between(m.x, m.y, this.player.x, this.player.y);
+      const dist = Phaser.Math.Distance.Between(
+        m.x,
+        m.y,
+        this.player.x,
+        this.player.y
+      );
       if (dist > 220) return;
       const cx = this.player.x;
       const cy = this.player.y;
@@ -667,21 +943,34 @@ export class MapScene extends Phaser.Scene {
         if (!m.active || !m.alive || this.player.dead) return;
         this.dieFx.explode(this.fxN(14), cx, cy);
         sfxBoom();
-        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) <= 90) {
+        if (
+          Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) <=
+          90
+        ) {
           const res = this.player.takeDamage(m.def.aoeDmg ?? 25);
           if (!res.dodged) {
             sfxPlayerHurt();
             this.cameras.main.shake(120, 0.005);
           }
-          const label = res.dodged ? 'MISS' : res.blocked ? `BLOCK -${res.actual}` : `-${res.actual}`;
+          const label = res.dodged
+            ? "MISS"
+            : res.blocked
+            ? `BLOCK -${res.actual}`
+            : `-${res.actual}`;
           const txt = this.add
             .text(this.player.x, this.player.y - 40, label, {
-              fontSize: '14px',
-              color: '#fb923c',
-              fontStyle: 'bold'
+              fontSize: "14px",
+              color: "#fb923c",
+              fontStyle: "bold",
             })
             .setDepth(60);
-          this.tweens.add({ targets: txt, y: this.player.y - 56, alpha: 0, duration: 600, onComplete: () => txt.destroy() });
+          this.tweens.add({
+            targets: txt,
+            y: this.player.y - 56,
+            alpha: 0,
+            duration: 600,
+            onComplete: () => txt.destroy(),
+          });
         }
       });
     }
@@ -690,32 +979,52 @@ export class MapScene extends Phaser.Scene {
       m.nextSummonAt = now + 22000;
       const aliveCount = this.monsters.filter((o) => o.alive).length;
       if (aliveCount >= 12) return;
-      const dist = Phaser.Math.Distance.Between(m.x, m.y, this.player.x, this.player.y);
+      const dist = Phaser.Math.Distance.Between(
+        m.x,
+        m.y,
+        this.player.x,
+        this.player.y
+      );
       if (dist > 400) return;
-      const txt = this.add
-        .text(m.x, m.y - 70, '💀 Boss memanggil!', {
-          fontSize: '13px',
-          color: '#c084fc',
-          fontStyle: 'bold',
-          backgroundColor: 'rgba(0,0,0,0.55)',
-          padding: { x: 6, y: 3 }
-        })
+      const txt = worldText(this, m.x, m.y - 70, "💀 Boss memanggil!", {
+        fontSize: "13px",
+        color: "#c084fc",
+        fontStyle: "bold",
+        backgroundColor: "rgba(0,0,0,0.55)",
+        padding: { x: 6, y: 3 },
+      })
         .setOrigin(0.5)
         .setDepth(60);
-      this.tweens.add({ targets: txt, y: m.y - 88, alpha: 0, duration: 1200, onComplete: () => txt.destroy() });
+      this.tweens.add({
+        targets: txt,
+        y: m.y - 88,
+        alpha: 0,
+        duration: 1200,
+        onComplete: () => txt.destroy(),
+      });
       sfxMonsterDie();
       for (let i = 0; i < 2; i++) {
-        const sx = Phaser.Math.Clamp(m.x + (i === 0 ? -50 : 50), 48, this.mapDef.widthPx - 48);
+        const sx = Phaser.Math.Clamp(
+          m.x + (i === 0 ? -50 : 50),
+          48,
+          this.mapDef.widthPx - 48
+        );
         const sy = Phaser.Math.Clamp(m.y + 40, 64, this.mapDef.heightPx - 48);
-        const def = MONSTERS.find((d) => d.id === (m.def.summonId ?? 'skeleton'))!;
-        const min = new Monster(this, sx, sy, def);
+        const def = MONSTERS.find(
+          (d) => d.id === (m.def.summonId ?? "skeleton")
+        )!;
+        const min = new Monster(this, sx, sy, def, m.level);
         this.monsters.push(min);
         this.physics.add.collider(min, this.obstacles);
-        this.physics.add.collider(min, this.monsters.filter((o) => o !== min && o.alive));
-        this.physics.add.overlap(
-          this.projectiles,
+        this.physics.add.collider(
           min,
-          (proj, target) => this.onProjectileHit(proj as Phaser.Physics.Arcade.Image, target as Monster)
+          this.monsters.filter((o) => o !== min && o.alive)
+        );
+        this.physics.add.overlap(this.projectiles, min, (proj, target) =>
+          this.onProjectileHit(
+            proj as Phaser.Physics.Arcade.Image,
+            target as Monster
+          )
         );
         this.physics.add.collider(this.player, min);
         min.provoke(this.time.now, 8000);
@@ -727,9 +1036,9 @@ export class MapScene extends Phaser.Scene {
   private onProjectileHit(proj: Phaser.Physics.Arcade.Image, target: Monster) {
     if (!target.alive) return;
     if (!proj.active) return;
-    const dmg = (proj.getData('dmg') as number) ?? 10;
-    const crit = (proj.getData('crit') as boolean) ?? false;
-    const aoe = (proj.getData('aoe') as number) ?? 0;
+    const dmg = (proj.getData("dmg") as number) ?? 10;
+    const crit = (proj.getData("crit") as boolean) ?? false;
+    const aoe = (proj.getData("aoe") as number) ?? 0;
     const hx = proj.x;
     const hy = proj.y;
     proj.destroy();
@@ -744,13 +1053,21 @@ export class MapScene extends Phaser.Scene {
     }
   }
 
-  private skillFxText(label: string, color = '#93c5fd') {
-    const txt = this.add.text(this.player.x, this.player.y - 52, label, {
-      fontSize: '14px',
+  private skillFxText(label: string, color = "#93c5fd") {
+    const txt = worldText(this, this.player.x, this.player.y - 52, label, {
+      fontSize: "14px",
       color,
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(60);
-    this.tweens.add({ targets: txt, y: this.player.y - 72, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+      fontStyle: "bold",
+    })
+      .setOrigin(0.5)
+      .setDepth(60);
+    this.tweens.add({
+      targets: txt,
+      y: this.player.y - 72,
+      alpha: 0,
+      duration: 800,
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private trySkill(slot = 0) {
@@ -762,56 +1079,59 @@ export class MapScene extends Phaser.Scene {
 
     const dir = this.player.facingVector();
     const range = this.player.attackRange;
-    const sortedInRange = () =>
-      this.monsters
-        .filter((m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= range)
-        .sort(
-          (a, b) =>
-            Phaser.Math.Distance.Between(this.player.x, this.player.y, a.x, a.y) -
-            Phaser.Math.Distance.Between(this.player.x, this.player.y, b.x, b.y)
-        );
-    const facingOk = (m: Monster) => {
-      const dx = m.x - this.player.x;
-      const dy = m.y - this.player.y;
-      const len = Math.hypot(dx, dy) || 1;
-      return (dx / len) * dir.x + (dy / len) * dir.y > 0.2;
-    };
     // Konsumsi MP + tandai cooldown. False = MP kurang (tampilkan hint).
     const use = (): boolean => {
       if (!this.player.tryConsumeMp(def.mpCost)) {
-        this.skillFxText('MP kurang!', '#93c5fd');
+        this.skillFxText("MP kurang!", "#93c5fd");
         return false;
       }
       this.player.markSkilled(now, slot);
-      window.dispatchEvent(new CustomEvent('skill-used', { detail: { slot, ms: def.cooldownMs } }));
+      window.dispatchEvent(
+        new CustomEvent("skill-used", { detail: { slot, ms: def.cooldownMs } })
+      );
       return true;
     };
 
-    if (def.id === 'whirlwind') {
+    if (def.id === "whirlwind") {
       // Warrior S1: AoE 360° tanpa syarat hadap
       const victims = this.monsters.filter(
-        (m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= 115
+        (m) =>
+          m.alive &&
+          Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            m.x,
+            m.y
+          ) <= 115
       );
       if (victims.length === 0) return;
       if (!use()) return;
-      this.skillFxText('Whirlwind!', '#fbbf24');
-      sfxSkill('warrior');
+      this.skillFxText("Whirlwind!", "#fbbf24");
+      sfxSkill("warrior");
       this.cameras.main.shake(90, 0.003);
-      const slash = this.add.image(this.player.x, this.player.y, 'slash').setDepth(this.player.depth + 0.2);
+      const slash = this.add
+        .image(this.player.x, this.player.y, "slash")
+        .setDepth(this.player.depth + 0.2);
       slash.setScale(1.8);
-      this.tweens.add({ targets: slash, alpha: 0, scale: 2.4, duration: 250, onComplete: () => slash.destroy() });
+      this.tweens.add({
+        targets: slash,
+        alpha: 0,
+        scale: 2.4,
+        duration: 250,
+        onComplete: () => slash.destroy(),
+      });
       const { dmg, crit } = this.player.rollDamage();
       const skillDmg = Math.max(1, Math.round(dmg * 1.5));
       victims.forEach((m) => this.damageMonster(m, skillDmg, crit));
       return;
     }
 
-    if (def.id === 'bulwark') {
+    if (def.id === "bulwark") {
       // Warrior S2: perisai 6 dtk
       if (!use()) return;
       this.player.shieldUntil = now + 6000;
-      this.skillFxText('Bulwark!', '#93c5fd');
-      sfxSkill('warrior');
+      this.skillFxText("Bulwark!", "#93c5fd");
+      sfxSkill("warrior");
       this.player.setTint(0x93c5fd);
       this.time.delayedCall(6000, () => {
         if (!this.player.dead) this.player.clearTint();
@@ -820,34 +1140,58 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    if (def.id === 'leap-slam') {
+    if (def.id === "leap-slam") {
       // Warrior S3: lompat 130px + AoE 100 (130%)
       const victims = this.monsters.filter(
-        (m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= 140
+        (m) =>
+          m.alive &&
+          Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            m.x,
+            m.y
+          ) <= 140
       );
       if (victims.length === 0) return;
       if (!use()) return;
       this.teleportSkill(130);
-      this.skillFxText('Leap Slam!', '#fb923c');
-      sfxSkill('warrior');
+      this.skillFxText("Leap Slam!", "#fb923c");
+      sfxSkill("warrior");
       this.cameras.main.shake(120, 0.005);
-      const slash = this.add.image(this.player.x, this.player.y, 'slash').setDepth(this.player.depth + 0.2);
+      const slash = this.add
+        .image(this.player.x, this.player.y, "slash")
+        .setDepth(this.player.depth + 0.2);
       slash.setScale(1.6);
-      this.tweens.add({ targets: slash, alpha: 0, scale: 2.2, duration: 250, onComplete: () => slash.destroy() });
+      this.tweens.add({
+        targets: slash,
+        alpha: 0,
+        scale: 2.2,
+        duration: 250,
+        onComplete: () => slash.destroy(),
+      });
       const { dmg, crit } = this.player.rollDamage();
       const skillDmg = Math.max(1, Math.round(dmg * 1.3));
       this.monsters
-        .filter((m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= 100)
+        .filter(
+          (m) =>
+            m.alive &&
+            Phaser.Math.Distance.Between(
+              this.player.x,
+              this.player.y,
+              m.x,
+              m.y
+            ) <= 100
+        )
         .forEach((m) => this.damageMonster(m, skillDmg, crit));
       return;
     }
 
-    if (def.id === 'fireball') {
-      const target = sortedInRange().find(facingOk);
+    if (def.id === "fireball") {
+      const target = this.pickTarget(range, dir);
       if (!target) return;
       if (!use()) return;
-      this.skillFxText('Fireball!', '#fb923c');
-      sfxSkill('mage');
+      this.skillFxText("Fireball!", "#fb923c");
+      sfxSkill("mage");
       const dx = target.x - this.player.x;
       const dy = target.y - this.player.y;
       const len = Math.hypot(dx, dy) || 1;
@@ -863,36 +1207,48 @@ export class MapScene extends Phaser.Scene {
       proj.setScale(1.8);
       const { dmg, crit } = this.player.rollDamage();
       const skillDmg = Math.max(1, Math.round(dmg * 2));
-      proj.setData('dmg', skillDmg);
-      proj.setData('crit', crit);
-      proj.setData('startX', proj.x);
-      proj.setData('startY', proj.y);
-      proj.setData('range', range + 40);
-      proj.setData('target', target);
-      proj.setData('speed', 380);
-      proj.setData('hitRadius', 36);
-      proj.setData('aoe', 65);
+      proj.setData("dmg", skillDmg);
+      proj.setData("crit", crit);
+      proj.setData("startX", proj.x);
+      proj.setData("startY", proj.y);
+      proj.setData("range", range + 40);
+      proj.setData("target", target);
+      proj.setData("speed", 380);
+      proj.setData("hitRadius", 36);
+      proj.setData("aoe", 65);
       if (proj.body) proj.body.reset(proj.x, proj.y);
       proj.setVelocity(nx * 380, ny * 380);
       proj.setAngle((Math.atan2(ny, nx) * 180) / Math.PI);
       return;
     }
 
-    if (def.id === 'frost-nova') {
+    if (def.id === "frost-nova") {
       // Mage S2: AoE 130 sekitar player (100%) + slow 4 dtk
       const victims = this.monsters.filter(
-        (m) => m.alive && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= 130
+        (m) =>
+          m.alive &&
+          Phaser.Math.Distance.Between(
+            this.player.x,
+            this.player.y,
+            m.x,
+            m.y
+          ) <= 130
       );
       if (victims.length === 0) return;
       if (!use()) return;
-      this.skillFxText('Frost Nova!', '#67e8f9');
-      sfxSkill('mage');
+      this.skillFxText("Frost Nova!", "#67e8f9");
+      sfxSkill("mage");
       const ring = this.add.graphics().setDepth(this.player.depth + 0.1);
       ring.lineStyle(4, 0x67e8f9, 0.9);
       ring.strokeCircle(this.player.x, this.player.y, 130);
       ring.fillStyle(0x67e8f9, 0.15);
       ring.fillCircle(this.player.x, this.player.y, 130);
-      this.tweens.add({ targets: ring, alpha: 0, duration: 500, onComplete: () => ring.destroy() });
+      this.tweens.add({
+        targets: ring,
+        alpha: 0,
+        duration: 500,
+        onComplete: () => ring.destroy(),
+      });
       const { dmg, crit } = this.player.rollDamage();
       victims.forEach((m) => {
         m.slowUntil = now + 4000;
@@ -901,24 +1257,42 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    if (def.id === 'blink') {
+    if (def.id === "blink") {
       // Mage S3: teleport 170px
       if (!use()) return;
       this.teleportSkill(170);
-      this.skillFxText('Blink!', '#c084fc');
-      sfxSkill('mage');
+      this.skillFxText("Blink!", "#c084fc");
+      sfxSkill("mage");
       return;
     }
 
-    if (def.id === 'double-shot') {
-      // Archer S1: 2 panah ke 2 target terdekat di depan (1 target = 2 panah)
-      const front = sortedInRange().filter(facingOk);
-      if (front.length === 0) return;
+    if (def.id === "double-shot") {
+      // Archer S1: 2 panah (lock manual prioritas, lalu terdekat di depan)
+      const primary = this.pickTarget(range, dir);
+      if (!primary) return;
       if (!use()) return;
-      this.skillFxText('Double Shot!', '#4ade80');
-      sfxSkill('archer');
-      const targets = front.slice(0, 2);
-      if (targets.length === 1) targets.push(targets[0]);
+      this.skillFxText("Double Shot!", "#4ade80");
+      sfxSkill("archer");
+      const targets = [primary];
+      let best2: Monster | null = null;
+      let bestDist = Infinity;
+      for (const m of this.monsters) {
+        if (!m.alive || m === primary) continue;
+        const d = Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          m.x,
+          m.y
+        );
+        if (d > range || d >= bestDist) continue;
+        const dx = m.x - this.player.x;
+        const dy = m.y - this.player.y;
+        const len = Math.hypot(dx, dy) || 1;
+        if ((dx / len) * dir.x + (dy / len) * dir.y <= 0.2) continue;
+        bestDist = d;
+        best2 = m;
+      }
+      targets.push(best2 ?? primary);
       const { dmg, crit } = this.player.rollDamage();
       targets.forEach((target, i) => {
         const dx = target.x - this.player.x;
@@ -934,14 +1308,14 @@ export class MapScene extends Phaser.Scene {
         ) as Phaser.Physics.Arcade.Image;
         proj.setDepth(10 + proj.y * 0.01 + 0.2);
         proj.setActive(true).setVisible(true);
-        proj.setData('dmg', dmg);
-        proj.setData('crit', crit);
-        proj.setData('startX', proj.x);
-        proj.setData('startY', proj.y);
-        proj.setData('range', range);
-        proj.setData('target', target);
-        proj.setData('speed', 460);
-        proj.setData('hitRadius', 28);
+        proj.setData("dmg", dmg);
+        proj.setData("crit", crit);
+        proj.setData("startX", proj.x);
+        proj.setData("startY", proj.y);
+        proj.setData("range", range);
+        proj.setData("target", target);
+        proj.setData("speed", 460);
+        proj.setData("hitRadius", 28);
         if (proj.body) proj.body.reset(proj.x, proj.y);
         proj.setVelocity(nx * 460, ny * 460);
         proj.setAngle((Math.atan2(ny, nx) * 180) / Math.PI);
@@ -949,15 +1323,15 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    if (def.id === 'arrow-rain') {
+    if (def.id === "arrow-rain") {
       // Archer S2: hujan panah di titik target (160%, r85, jeda 0.7 dtk)
-      const target = sortedInRange().find(facingOk);
+      const target = this.pickTarget(range, dir);
       if (!target) return;
       if (!use()) return;
       const tx = target.x;
       const ty = target.y;
-      this.skillFxText('Arrow Rain!', '#4ade80');
-      sfxSkill('archer');
+      this.skillFxText("Arrow Rain!", "#4ade80");
+      sfxSkill("archer");
       const mark = this.add.graphics().setDepth(2);
       mark.lineStyle(2, 0x4ade80, 0.9);
       mark.strokeCircle(tx, ty, 85);
@@ -969,18 +1343,21 @@ export class MapScene extends Phaser.Scene {
         const { dmg, crit } = this.player.rollDamage();
         const skillDmg = Math.max(1, Math.round(dmg * 1.6));
         this.monsters
-          .filter((m) => m.alive && Phaser.Math.Distance.Between(tx, ty, m.x, m.y) <= 85)
+          .filter(
+            (m) =>
+              m.alive && Phaser.Math.Distance.Between(tx, ty, m.x, m.y) <= 85
+          )
           .forEach((m) => this.damageMonster(m, skillDmg, crit));
       });
       return;
     }
 
-    if (def.id === 'swift') {
+    if (def.id === "swift") {
       // Archer S3: 6 dtk serang cepat + gerak cepat
       if (!use()) return;
       this.player.swiftUntil = now + 6000;
-      this.skillFxText('Swift!', '#4ade80');
-      sfxSkill('archer');
+      this.skillFxText("Swift!", "#4ade80");
+      sfxSkill("archer");
       this.levelFx.explode(this.fxN(10), this.player.x, this.player.y);
       return;
     }
@@ -989,29 +1366,42 @@ export class MapScene extends Phaser.Scene {
   /** Teleport searah hadap (blink / leap). */
   private teleportSkill(dist: number) {
     const dir = this.player.facingVector();
-    const nx = Phaser.Math.Clamp(this.player.x + dir.x * dist, 48, this.mapDef.widthPx - 48);
-    const ny = Phaser.Math.Clamp(this.player.y + dir.y * dist, 64, this.mapDef.heightPx - 48);
+    const nx = Phaser.Math.Clamp(
+      this.player.x + dir.x * dist,
+      48,
+      this.mapDef.widthPx - 48
+    );
+    const ny = Phaser.Math.Clamp(
+      this.player.y + dir.y * dist,
+      64,
+      this.mapDef.heightPx - 48
+    );
     this.dieFx.explode(this.fxN(8), this.player.x, this.player.y);
     this.player.setPosition(nx, ny);
     this.player.setVelocity(0, 0);
-    this.player.setDepth(10 + ((ny + 24) * 0.01));
+    this.player.setDepth(10 + (ny + 24) * 0.01);
     this.dieFx.explode(this.fxN(8), nx, ny);
   }
 
   private damageMonster(m: Monster, dmg: number, crit = false) {
     // evade: immune, tampilkan label, jangan provoke / damage
     if (m.evading) {
-      const txt = this.add
-        .text(m.x, m.y - 52, 'EVADE', {
-          fontSize: '14px',
-          color: '#e5e7eb',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          padding: { x: 6, y: 3 },
-          fontStyle: 'bold'
-        })
+      const txt = worldText(this, m.x, m.y - 52, "EVADE", {
+        fontSize: "14px",
+        color: "#e5e7eb",
+        backgroundColor: "rgba(0,0,0,0.6)",
+        padding: { x: 6, y: 3 },
+        fontStyle: "bold",
+      })
         .setOrigin(0.5)
         .setDepth(60);
-      this.tweens.add({ targets: txt, y: m.y - 68, alpha: 0, duration: 600, onComplete: () => txt.destroy() });
+      this.tweens.add({
+        targets: txt,
+        y: m.y - 68,
+        alpha: 0,
+        duration: 600,
+        onComplete: () => txt.destroy(),
+      });
       return;
     }
     // kena hit = langsung aggro ke player walau di luar aggroRange
@@ -1019,15 +1409,35 @@ export class MapScene extends Phaser.Scene {
     sfxHit();
     this.hitFx.explode(this.fxN(6), m.x, m.y - 10);
     // angka damage melayang (kuning jika crit)
-    const txt = this.add.text(m.x, m.y - 36, `${crit ? 'CRIT ' : ''}-${dmg}`, {
-      fontSize: crit ? '15px' : '13px',
-      color: crit ? '#fbbf24' : '#ffffff',
-      fontStyle: 'bold'
-    }).setDepth(60);
-    this.tweens.add({ targets: txt, y: m.y - 52, alpha: 0, duration: 500, onComplete: () => txt.destroy() });
+    const txt = worldText(
+      this,
+      m.x,
+      m.y - 36,
+      `${crit ? "CRIT " : ""}-${dmg}`,
+      {
+        fontSize: crit ? "15px" : "13px",
+        color: crit ? "#fbbf24" : "#ffffff",
+        fontStyle: "bold",
+      }
+    ).setDepth(60);
+    this.tweens.add({
+      targets: txt,
+      y: m.y - 52,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => txt.destroy(),
+    });
 
     const died = m.takeDamage(dmg);
     this.player.healFromLifesteal(dmg);
+    if (!died) {
+      // panel status target ikut HP terbaru
+      window.dispatchEvent(
+        new CustomEvent('target-show', {
+          detail: { id: m.def.id, name: m.def.name, level: m.level, hp: m.hp, maxHp: m.maxHp, locked: this.locked === m }
+        })
+      );
+    }
     if (died) {
       this.killCount += 1;
       this.hudKill.setText(`Kill: ${this.killCount}`);
@@ -1044,11 +1454,16 @@ export class MapScene extends Phaser.Scene {
       } catch {
         // abaikan
       }
-      window.dispatchEvent(new CustomEvent('monster-killed', { detail: monsterId }));
+      window.dispatchEvent(
+        new CustomEvent("monster-killed", { detail: monsterId })
+      );
       registerKill(monsterId);
       sfxMonsterDie();
       this.dieFx.explode(this.fxN(wasBoss ? 26 : 12), m.x, m.y);
-      if (wasBoss) this.cameras.main.shake(200, 0.008);
+      if (wasBoss) {
+        this.cameras.main.shake(200, 0.008);
+        this.chat(`💀 ${m.def.name} Lv.${m.level} tumbang!`);
+      }
       // loot Batch B: gold selalu + item chance
       const loot = rollDrops(monsterId);
       if (loot.gold > 0) {
@@ -1062,18 +1477,26 @@ export class MapScene extends Phaser.Scene {
         const def = getItem(d.id);
         lootParts.push(`+${def?.name ?? d.id}`);
       });
-      const lootTxt = this.add.text(m.x, m.y - 52, lootParts.join(' '), {
-        fontSize: '12px',
-        color: '#fbbf24',
-        fontStyle: 'bold'
+      const lootTxt = worldText(this, m.x, m.y - 52, lootParts.join(" "), {
+        fontSize: "12px",
+        color: "#fbbf24",
+        fontStyle: "bold",
       }).setDepth(60);
-      this.tweens.add({ targets: lootTxt, y: m.y - 70, alpha: 0, duration: 900, onComplete: () => lootTxt.destroy() });
+      this.tweens.add({
+        targets: lootTxt,
+        y: m.y - 70,
+        alpha: 0,
+        duration: 900,
+        onComplete: () => lootTxt.destroy(),
+      });
       // hapus dari list tanpa ganti referensi array (agar collider/overlap stabil)
       const idx = this.monsters.indexOf(m);
       if (idx >= 0) this.monsters.splice(idx, 1);
+      if (this.locked === m) this.unlockTarget();
       m.dieWithEffect(() => {
         // respawn sesuai def (boss 25 detik, biasa 4 detik)
-        const respawnMs = MONSTERS.find((d) => d.id === monsterId)?.respawnMs ?? 4000;
+        const respawnMs =
+          MONSTERS.find((d) => d.id === monsterId)?.respawnMs ?? 4000;
         this.time.delayedCall(respawnMs, () => this.spawnMonster(monsterId));
       });
       const leveled = this.player.addExp(monsterExp);
@@ -1081,40 +1504,66 @@ export class MapScene extends Phaser.Scene {
         setMaxLevel(this.player.level);
         checkLevel(this.player.level);
         sfxLevelUp();
+        this.chat(`⬆️ Naik ke Lv.${this.player.level}!`);
         this.levelFx.explode(this.fxN(18), this.player.x, this.player.y);
-        const lv = this.add.text(this.player.x, this.player.y - 44, `LEVEL UP! Lv.${this.player.level}`, {
-          fontSize: '14px',
-          color: '#4ade80',
-          fontStyle: 'bold'
-        }).setDepth(60);
-        this.tweens.add({ targets: lv, y: this.player.y - 64, alpha: 0, duration: 1200, onComplete: () => lv.destroy() });
+        const lv = worldText(
+          this,
+          this.player.x,
+          this.player.y - 44,
+          `LEVEL UP! Lv.${this.player.level}`,
+          {
+            fontSize: "14px",
+            color: "#4ade80",
+            fontStyle: "bold",
+          }
+        ).setDepth(60);
+        this.tweens.add({
+          targets: lv,
+          y: this.player.y - 64,
+          alpha: 0,
+          duration: 1200,
+          onComplete: () => lv.destroy(),
+        });
       }
-      // Batch H: bounty harian elite (auto-klaim)
-      if (wasBoss && registerEliteKill()) {
-        addGold(BOUNTY_REWARD_GOLD);
+      // Batch S: bounty harian per-map (auto-klaim)
+      const completedBounties = registerKillBounty(monsterId);
+      completedBounties.forEach((b, bi) => {
+        addGold(b.gold);
         sfxCoin();
         sfxQuest();
-        const bl = this.player.addExp(BOUNTY_REWARD_EXP);
+        this.chat(`🎯 Bounty selesai: ${b.name} (+${b.gold}G)`);
+        const bl = this.player.addExp(b.exp);
         if (bl) {
           setMaxLevel(this.player.level);
           checkLevel(this.player.level);
         }
-        const bt = this.add
-          .text(m.x, m.y - 72, `🎯 BOUNTY +${BOUNTY_REWARD_GOLD}G +${BOUNTY_REWARD_EXP} EXP`, {
-            fontSize: '14px',
-            color: '#fbbf24',
-            fontStyle: 'bold',
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            padding: { x: 6, y: 3 }
-          })
+        const bt = worldText(
+          this,
+          m.x,
+          m.y - 72 - bi * 22,
+          `🎯 ${b.name} +${b.gold}G +${b.exp} EXP`,
+          {
+            fontSize: "14px",
+            color: "#fbbf24",
+            fontStyle: "bold",
+            backgroundColor: "rgba(0,0,0,0.6)",
+            padding: { x: 6, y: 3 },
+          }
+        )
           .setOrigin(0.5)
           .setDepth(60);
-        this.tweens.add({ targets: bt, y: m.y - 92, alpha: 0, duration: 1500, onComplete: () => bt.destroy() });
+        this.tweens.add({
+          targets: bt,
+          y: m.y - 92 - bi * 22,
+          alpha: 0,
+          duration: 1500,
+          onComplete: () => bt.destroy(),
+        });
         if (bl && !leveled) {
           sfxLevelUp();
-          this.levelFx.explode(18, this.player.x, this.player.y);
+          this.levelFx.explode(this.fxN(18), this.player.x, this.player.y);
         }
-      }
+      });
     }
   }
 
@@ -1122,13 +1571,23 @@ export class MapScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(0);
     const ts = this.mapDef.tileSize;
     const theme = this.mapDef.theme;
-    const dark = theme === 'dark';
-    const cave = theme === 'cave';
+    const dark = theme === "dark";
+    const cave = theme === "cave";
     for (let ty = 0; ty < this.mapDef.heightTiles; ty++) {
       for (let tx = 0; tx < this.mapDef.widthTiles; tx++) {
         const checker = (tx + ty) % 2 === 0;
         g.fillStyle(
-          checker ? (cave ? 0x241d2e : dark ? 0x161a16 : 0x1e2b1f) : cave ? 0x1d1626 : dark ? 0x111511 : 0x1a261b,
+          checker
+            ? cave
+              ? 0x241d2e
+              : dark
+              ? 0x161a16
+              : 0x1e2b1f
+            : cave
+            ? 0x1d1626
+            : dark
+            ? 0x111511
+            : 0x1a261b,
           1
         );
         g.fillRect(tx * ts, ty * ts, ts, ts);
@@ -1136,7 +1595,7 @@ export class MapScene extends Phaser.Scene {
         g.strokeRect(tx * ts, ty * ts, ts, ts);
       }
     }
-    if (theme === 'green') {
+    if (theme === "green") {
       // jalan tanah: horizontal + vertikal bersilangan di spawn
       g.fillStyle(0x4a3b2a, 1);
       g.fillRect(32, 464, this.mapDef.widthPx - 64, 32);
@@ -1150,7 +1609,11 @@ export class MapScene extends Phaser.Scene {
       };
       g.fillStyle(0x3f3f46, 0.8);
       for (let i = 0; i < 60; i++) {
-        g.fillCircle(40 + rnd() * (this.mapDef.widthPx - 80), 40 + rnd() * (this.mapDef.heightPx - 80), 2);
+        g.fillCircle(
+          40 + rnd() * (this.mapDef.widthPx - 80),
+          40 + rnd() * (this.mapDef.heightPx - 80),
+          2
+        );
       }
     } else {
       // lava tengah + kristal
@@ -1181,11 +1644,10 @@ export class MapScene extends Phaser.Scene {
     g.strokeCircle(hz.x, hz.y, hz.r);
     g.lineStyle(2, 0x3b82f6, 0.5);
     g.strokeCircle(this.mapDef.playerSpawn.x, this.mapDef.playerSpawn.y, 24);
-    this.add
-      .text(hz.x, hz.y + hz.r + 12, 'HEAL ZONE', {
-        fontSize: '12px',
-        color: '#4ade80'
-      })
+    worldText(this, hz.x, hz.y + hz.r + 12, "HEAL ZONE", {
+      fontSize: "12px",
+      color: "#4ade80",
+    })
       .setOrigin(0.5)
       .setDepth(2);
   }
@@ -1210,11 +1672,18 @@ export class MapScene extends Phaser.Scene {
     }
     // rumah per-objek agar Y-sort (player depan/belakang benar)
     this.mapDef.houses.forEach((h) => {
-      const hg = this.add.graphics().setDepth(10 + ((h.y + h.h) * 0.01));
-      hg.fillStyle(this.mapDef.theme === 'dark' ? 0x57534e : 0x92400e, 1);
+      const hg = this.add.graphics().setDepth(10 + (h.y + h.h) * 0.01);
+      hg.fillStyle(this.mapDef.theme === "dark" ? 0x57534e : 0x92400e, 1);
       hg.fillRect(h.x, h.y + 24, h.w, h.h - 24);
-      hg.fillStyle(this.mapDef.theme === 'dark' ? 0x1c1917 : 0x7f1d1d, 1);
-      hg.fillTriangle(h.x - 8, h.y + 26, h.x + h.w / 2, h.y - 18, h.x + h.w + 8, h.y + 26);
+      hg.fillStyle(this.mapDef.theme === "dark" ? 0x1c1917 : 0x7f1d1d, 1);
+      hg.fillTriangle(
+        h.x - 8,
+        h.y + 26,
+        h.x + h.w / 2,
+        h.y - 18,
+        h.x + h.w + 8,
+        h.y + 26
+      );
       hg.fillStyle(0x1f2937, 1);
       hg.fillRect(h.x + h.w / 2 - 10, h.y + h.h - 34, 20, 34);
       hg.fillStyle(0xfbbf24, 1);
@@ -1223,10 +1692,10 @@ export class MapScene extends Phaser.Scene {
     });
     // pohon per-objek agar Y-sort (gua: stalagmit abu)
     this.mapDef.trees.forEach((t) => {
-      const tg = this.add.graphics().setDepth(10 + ((t.y + 13) * 0.01));
+      const tg = this.add.graphics().setDepth(10 + (t.y + 13) * 0.01);
       tg.fillStyle(0x78350f, 1);
       tg.fillRect(t.x - 3, t.y - 2, 6, 14);
-      if (this.mapDef.theme === 'green') {
+      if (this.mapDef.theme === "green") {
         tg.fillStyle(0x166534, 1);
         tg.fillCircle(t.x, t.y - 12, 16);
         tg.fillStyle(0x22c55e, 1);
@@ -1239,16 +1708,20 @@ export class MapScene extends Phaser.Scene {
       }
     });
     // bunga + rumput deterministik (tanpa collision)
-    let seed = this.mapDef.theme === 'dark' ? 21 : 7;
+    let seed = this.mapDef.theme === "dark" ? 21 : 7;
     const rnd = () => {
       seed = (seed * 16807) % 2147483647;
       return seed / 2147483647;
     };
     const avoid: Array<{ x: number; y: number; r: number }> = [
       { x: this.mapDef.playerSpawn.x, y: this.mapDef.playerSpawn.y, r: 100 },
-      ...(this.mapDef.npc ? [{ x: this.mapDef.npc.x, y: this.mapDef.npc.y, r: 80 }] : []),
+      ...(this.mapDef.npc
+        ? [{ x: this.mapDef.npc.x, y: this.mapDef.npc.y, r: 80 }]
+        : []),
       ...this.mapDef.monsterSpawns.map((s) => ({ x: s.x, y: s.y, r: 90 })),
-      ...(this.mapDef.pond ? [{ x: this.mapDef.pond.x, y: this.mapDef.pond.y, r: 120 }] : [])
+      ...(this.mapDef.pond
+        ? [{ x: this.mapDef.pond.x, y: this.mapDef.pond.y, r: 120 }]
+        : []),
     ];
     for (let i = 0; i < 46; i++) {
       const x = 40 + rnd() * (this.mapDef.widthPx - 80);
@@ -1292,7 +1765,10 @@ export class MapScene extends Phaser.Scene {
     const queuedSlot = VirtualInput.consumeSkill();
     if (queuedSlot !== null) {
       this.trySkill(queuedSlot);
-    } else if (Phaser.Input.Keyboard.JustDown(this.skillKeyQ) || Phaser.Input.Keyboard.JustDown(this.skillKey1)) {
+    } else if (
+      Phaser.Input.Keyboard.JustDown(this.skillKeyQ) ||
+      Phaser.Input.Keyboard.JustDown(this.skillKey1)
+    ) {
       this.trySkill(0);
     } else if (Phaser.Input.Keyboard.JustDown(this.skillKey2)) {
       this.trySkill(1);
@@ -1302,7 +1778,7 @@ export class MapScene extends Phaser.Scene {
 
     // interaksi NPC: E / tombol 💬 saat dekat
     const near = this.isNearNpc();
-    document.getElementById('interact-btn')?.classList.toggle('hidden', !near);
+    document.getElementById("interact-btn")?.classList.toggle("hidden", !near);
     if (near && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       this.openNpc();
     }
@@ -1327,13 +1803,23 @@ export class MapScene extends Phaser.Scene {
           sfxPlayerHurt();
           this.cameras.main.shake(70, 0.0035);
         }
-        const label = res.dodged ? 'MISS' : res.blocked ? `BLOCK -${res.actual}` : `-${res.actual}`;
-        const txt = this.add.text(this.player.x, this.player.y - 40, label, {
-          fontSize: '13px',
-          color: res.dodged ? '#9ca3af' : '#ef4444',
-          fontStyle: 'bold'
+        const label = res.dodged
+          ? "MISS"
+          : res.blocked
+          ? `BLOCK -${res.actual}`
+          : `-${res.actual}`;
+        const txt = worldText(this, this.player.x, this.player.y - 40, label, {
+          fontSize: "13px",
+          color: res.dodged ? "#9ca3af" : "#ef4444",
+          fontStyle: "bold",
         }).setDepth(60);
-        this.tweens.add({ targets: txt, y: this.player.y - 56, alpha: 0, duration: 600, onComplete: () => txt.destroy() });
+        this.tweens.add({
+          targets: txt,
+          y: this.player.y - 56,
+          alpha: 0,
+          duration: 600,
+          onComplete: () => txt.destroy(),
+        });
       }
       // Batch K: pola boss elite (skip saat evade)
       if (m.def.boss && !m.evading) {
@@ -1345,8 +1831,8 @@ export class MapScene extends Phaser.Scene {
     this.projectiles.getChildren().forEach((c) => {
       const p = c as Phaser.Physics.Arcade.Image;
       if (!p.active) return;
-      const target = p.getData('target') as Monster | null;
-      const speed = (p.getData('speed') as number) ?? 400;
+      const target = p.getData("target") as Monster | null;
+      const speed = (p.getData("speed") as number) ?? 400;
       if (target && (target as Monster).active && target.alive) {
         const dx = target.x - p.x;
         const dy = target.y - p.y;
@@ -1357,7 +1843,7 @@ export class MapScene extends Phaser.Scene {
       p.setDepth(10 + p.y * 0.01 + 0.2);
       for (const m of this.monsters) {
         if (!m.alive) continue;
-        const hitRadius = (p.getData('hitRadius') as number) ?? 28;
+        const hitRadius = (p.getData("hitRadius") as number) ?? 28;
         if (Phaser.Math.Distance.Between(p.x, p.y, m.x, m.y) <= hitRadius) {
           this.onProjectileHit(p, m);
           return;
@@ -1368,30 +1854,65 @@ export class MapScene extends Phaser.Scene {
     // bersihkan projectile yang melewati range / keluar world
     this.projectiles.getChildren().forEach((c) => {
       const p = c as Phaser.Physics.Arcade.Image;
-      const sx = (p.getData('startX') as number) ?? p.x;
-      const sy = (p.getData('startY') as number) ?? p.y;
-      const range = (p.getData('range') as number) ?? 250;
+      const sx = (p.getData("startX") as number) ?? p.x;
+      const sy = (p.getData("startY") as number) ?? p.y;
+      const range = (p.getData("range") as number) ?? 250;
       const travelled = Phaser.Math.Distance.Between(sx, sy, p.x, p.y);
       if (travelled > range) p.destroy();
-      if (p.x < 0 || p.y < 0 || p.x > this.mapDef.widthPx || p.y > this.mapDef.heightPx) p.destroy();
+      if (
+        p.x < 0 ||
+        p.y < 0 ||
+        p.x > this.mapDef.widthPx ||
+        p.y > this.mapDef.heightPx
+      )
+        p.destroy();
     });
 
     this.monsters.forEach((m) => m.alive && m.updateBar());
 
+    // cincin target-lock mengikuti monster
+    if (this.locked && (!this.locked.alive || !this.locked.active)) {
+      this.unlockTarget();
+    }
+    if (this.locked && this.lockRing) {
+      const r = this.locked.displayWidth / 2 + 8;
+      this.lockRing.clear();
+      this.lockRing.lineStyle(3, 0xef4444, 0.95);
+      this.lockRing.strokeCircle(this.locked.x, this.locked.y, r);
+      this.lockRing.setDepth(2);
+    }
+
     // Batch F: heal zone 8% HP + 10% MP per detik, tick 500ms
     if (!this.player.dead) {
       const inZone =
-        Phaser.Math.Distance.Between(this.player.x, this.player.y, this.mapDef.healZone.x, this.mapDef.healZone.y) <=
-        this.mapDef.healZone.r;
+        Phaser.Math.Distance.Between(
+          this.player.x,
+          this.player.y,
+          this.mapDef.healZone.x,
+          this.mapDef.healZone.y
+        ) <= this.mapDef.healZone.r;
       if (inZone && this.player.derived) {
         this.healAccum += delta;
         if (this.healAccum >= 500) {
           this.healAccum = 0;
-          const hpGain = Math.max(1, Math.round(this.player.derived.maxHp * 0.04));
-          const mpGain = Math.max(1, Math.round(this.player.derived.maxMp * 0.05));
-          if (this.player.hp < this.player.derived.maxHp || this.player.mp < this.player.derived.maxMp) {
+          const hpGain = Math.max(
+            1,
+            Math.round(this.player.derived.maxHp * 0.04)
+          );
+          const mpGain = Math.max(
+            1,
+            Math.round(this.player.derived.maxMp * 0.05)
+          );
+          if (
+            this.player.hp < this.player.derived.maxHp ||
+            this.player.mp < this.player.derived.maxMp
+          ) {
             this.player.healZone(hpGain, mpGain);
-            this.levelFx.explode(this.fxN(2), this.player.x + Phaser.Math.Between(-12, 12), this.player.y);
+            this.levelFx.explode(
+              this.fxN(2),
+              this.player.x + Phaser.Math.Between(-12, 12),
+              this.player.y
+            );
           }
         }
       } else {
@@ -1418,23 +1939,32 @@ export class MapScene extends Phaser.Scene {
       this.miniAccum = 0;
       const view = this.cameras.main.worldView;
       window.dispatchEvent(
-        new CustomEvent('minimap-update', {
+        new CustomEvent("minimap-update", {
           detail: {
             w: this.mapDef.widthPx,
             h: this.mapDef.heightPx,
-            player: { x: Math.round(this.player.x), y: Math.round(this.player.y) },
-            monsters: this.monsters.filter((m) => m.alive).map((m) => ({ x: Math.round(m.x), y: Math.round(m.y), boss: !!m.def.boss })),
+            player: {
+              x: Math.round(this.player.x),
+              y: Math.round(this.player.y),
+            },
+            monsters: this.monsters
+              .filter((m) => m.alive)
+              .map((m) => ({
+                x: Math.round(m.x),
+                y: Math.round(m.y),
+                boss: !!m.def.boss,
+              })),
             npc: this.npc ? { x: this.npc.x, y: this.npc.y } : null,
             portals: this.mapDef.portals.map((p) => ({ x: p.x, y: p.y })),
-            view: { x: Math.round(view.x), y: Math.round(view.y), w: Math.round(view.width), h: Math.round(view.height) }
-          }
+            view: {
+              x: Math.round(view.x),
+              y: Math.round(view.y),
+              w: Math.round(view.width),
+              h: Math.round(view.height),
+            },
+          },
         })
       );
     }
-
-    const hud = document.getElementById('hud-pos');
-    const txt = `X: ${Math.round(this.player.x)} Y: ${Math.round(this.player.y)} facing: ${this.player.facing}`;
-    if (hud) hud.textContent = txt;
-    this.hudPos.setText(txt);
   }
 }

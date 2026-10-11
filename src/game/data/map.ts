@@ -25,7 +25,7 @@ export interface MapDefShape {
   pond?: { x: number; y: number; rx: number; ry: number };
   trees: Array<{ x: number; y: number }>;
   houses: Array<{ x: number; y: number; w: number; h: number }>;
-  monsterSpawns: Array<{ monsterId: string; x: number; y: number; count: number }>;
+  monsterSpawns: Array<{ monsterId: string; x: number; y: number; count: number; level: number }>;
   obstacles: Array<{ x: number; y: number; w: number; h: number }>;
   portals: PortalDef[];
   npc?: { x: number; y: number };
@@ -74,11 +74,11 @@ export const MAP_DEF = makeDef({
     { x: 760, y: 620, w: 140, h: 90 }
   ],
   monsterSpawns: [
-    { monsterId: 'slime', x: 320, y: 300, count: 4 },
-    { monsterId: 'goblin', x: 900, y: 350, count: 3 },
-    { monsterId: 'skeleton', x: 640, y: 760, count: 2 },
-    { monsterId: 'skeleton-elite', x: 860, y: 810, count: 1 },
-    { monsterId: 'slime', x: 1300, y: 500, count: 3 }
+    { monsterId: 'slime', x: 320, y: 300, count: 4, level: 1 },
+    { monsterId: 'goblin', x: 900, y: 350, count: 3, level: 2 },
+    { monsterId: 'skeleton', x: 640, y: 760, count: 2, level: 3 },
+    { monsterId: 'skeleton-elite', x: 860, y: 810, count: 1, level: 5 },
+    { monsterId: 'slime', x: 1300, y: 500, count: 3, level: 2 }
   ],
   obstacles: [
     { x: 0, y: 0, w: 1664, h: 32 }, // top wall
@@ -118,10 +118,10 @@ export const MAP_DARK = makeDef({
   ],
   houses: [{ x: 600, y: 480, w: 120, h: 90 }],
   monsterSpawns: [
-    { monsterId: 'wolf', x: 400, y: 400, count: 4 },
-    { monsterId: 'orc', x: 1000, y: 450, count: 3 },
-    { monsterId: 'golem', x: 700, y: 250, count: 2 },
-    { monsterId: 'orc', x: 1250, y: 950, count: 2 }
+    { monsterId: 'wolf', x: 400, y: 400, count: 4, level: 4 },
+    { monsterId: 'orc', x: 1000, y: 450, count: 3, level: 5 },
+    { monsterId: 'golem', x: 700, y: 250, count: 2, level: 6 },
+    { monsterId: 'orc', x: 1250, y: 950, count: 2, level: 6 }
   ],
   obstacles: [
     { x: 0, y: 0, w: 1664, h: 32 },
@@ -156,9 +156,9 @@ export const MAP_CAVE = makeDef({
   ],
   houses: [],
   monsterSpawns: [
-    { monsterId: 'bat', x: 400, y: 400, count: 4 },
-    { monsterId: 'cultist', x: 1000, y: 550, count: 3 },
-    { monsterId: 'cave-troll', x: 704, y: 250, count: 1 }
+    { monsterId: 'bat', x: 400, y: 400, count: 4, level: 7 },
+    { monsterId: 'cultist', x: 1000, y: 550, count: 3, level: 8 },
+    { monsterId: 'cave-troll', x: 704, y: 250, count: 1, level: 10 }
   ],
   obstacles: [
     { x: 0, y: 0, w: 1408, h: 32 },

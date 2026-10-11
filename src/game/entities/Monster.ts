@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import type { MonsterDef } from '../data/monsters';
+import { isBehindHud, worldText } from '../text';
 
 export class Monster extends Phaser.Physics.Arcade.Sprite {
   def: MonsterDef;
   maxHp: number;
   hp: number;
   alive = true;
+  /** Batch S/U: level zona (skala HP/atk +8%/level). */
+  level: number;
   spawnX: number;
   spawnY: number;
   lastAttackAt = 0;
@@ -17,13 +20,16 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
   nextAoEAt = 0;
   nextSummonAt = 0;
   private baseScale = 1;
+  private nameText: Phaser.GameObjects.Text;
   private hpBar: Phaser.GameObjects.Graphics;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, def: MonsterDef) {
+  constructor(scene: Phaser.Scene, x: number, y: number, def: MonsterDef, level = 1) {
     super(scene, x, y, def.texture);
     this.def = def;
-    this.maxHp = def.hp;
-    this.hp = def.hp;
+    this.level = Math.max(1, Math.round(level));
+    const scale = 1 + (this.level - 1) * 0.08;
+    this.maxHp = Math.round(def.hp * scale);
+    this.hp = this.maxHp;
     this.spawnX = x;
     this.spawnY = y;
     scene.add.existing(this);
@@ -33,6 +39,14 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.baseScale = def.scale ?? 1;
     this.setScale(this.baseScale);
     this.setDepth(10 + ((y + 16 * this.baseScale) * 0.01));
+
+    this.nameText = worldText(scene, x, y - 42, `${def.name} Lv.${this.level}`, {
+      fontSize: def.boss ? '13px' : '11px',
+      color: def.boss ? '#c084fc' : '#e5e7eb',
+      fontStyle: 'bold',
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      padding: { x: 4, y: 1 }
+    }).setOrigin(0.5);
 
     this.hpBar = scene.add.graphics().setDepth(6);
     this.drawHpBar();
@@ -67,6 +81,16 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
 
   updateBar() {
     this.setDepth(10 + ((this.y + this.displayHeight / 2) * 0.01));
+    // sembunyi saat ketutup HUD (label tidak ngintip potong)
+    const hidden = !this.alive || isBehindHud(this.scene, this.x, this.y - 40);
+    this.nameText.setVisible(!hidden);
+    if (hidden) {
+      this.hpBar.clear();
+      return;
+    }
+    const yOff = this.def.boss ? -52 : -40;
+    this.nameText.setPosition(this.x, this.y + yOff);
+    this.nameText.setDepth(this.depth + 0.06);
     this.drawHpBar();
   }
 
@@ -97,7 +121,8 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
   }
 
   rollMonsterDamage(): number {
-    return Math.max(1, this.def.atk + Phaser.Math.Between(-1, 2));
+    const scale = 1 + (this.level - 1) * 0.08;
+    return Math.max(1, Math.round(this.def.atk * scale) + Phaser.Math.Between(-1, 2));
   }
 
   /** Dipanggil saat kena damage agar langsung mengejar player walau di luar aggro. */
@@ -178,6 +203,7 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
 
   dieWithEffect(onDone: () => void) {
     this.scene.tweens.killTweensOf(this);
+    this.nameText.setVisible(false);
     this.scene.tweens.add({
       targets: this,
       alpha: 0,
@@ -185,6 +211,7 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
       duration: 250,
       onComplete: () => {
         this.hpBar.destroy();
+        this.nameText.destroy();
         this.destroy();
         onDone();
       }

@@ -116,15 +116,46 @@ html, body {
   justify-content: flex-end;
   pointer-events: auto;
 }
-#gold {
+#gold-row {
   color: #fbbf24;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: bold;
-  background: linear-gradient(180deg, rgba(30,24,14,.92), rgba(12,9,5,.92));
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 2px solid #c9a227;
+  margin-top: 1px;
+  text-shadow: 0 1px 2px #000;
 }
+/* Panel status target: tengah atas, sejajar frame player */
+#target-frame {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: linear-gradient(180deg, rgba(30,24,14,.92), rgba(12,9,5,.92));
+  border: 2px solid #c9a227;
+  box-shadow: 0 0 0 2px #0e0b06, 0 2px 10px rgba(0,0,0,.6);
+  border-radius: 14px;
+  padding: 6px 10px 6px 6px;
+  margin: 0 auto;
+  flex: 0 1 230px;
+  min-width: 0;
+  width: 240px;
+  pointer-events: none;
+}
+#target-frame.hidden { display: none; }
+#target-portrait {
+  width: clamp(38px, 11vmin, 46px);
+  height: clamp(38px, 11vmin, 46px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(20px, 5vmin, 24px);
+  flex: none;
+  border: 2px solid #ef4444;
+  background: #1f2937;
+  box-shadow: 0 0 8px rgba(239,68,68,.5);
+}
+#target-bars { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#target-name { color: #f5d67b; font-size: 12px; font-weight: bold; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#target-hp-fill { height: 100%; width: 100%; background: linear-gradient(#f87171,#b91c1c); transition: width .15s; }
 #top-menu button {
   width: 44px;
   height: 44px;
@@ -137,19 +168,12 @@ html, body {
   touch-action: manipulation;
 }
 #top-menu button:active { transform: scale(.92); }
-#hud-pos {
-  color: #9ca3af;
-  font-size: 11px;
-  background: rgba(0,0,0,.5);
-  padding: 6px 8px;
-  border-radius: 8px;
-}
 
 /* ===== Minimap kanan-atas (bundar) ===== */
 #minimap-wrap {
   position: fixed;
   right: calc(12px + env(safe-area-inset-right));
-  top: calc(70px + env(safe-area-inset-top));
+  top: calc(8px + env(safe-area-inset-top));
   width: 132px;
   height: 132px;
   border-radius: 50%;
@@ -314,12 +338,64 @@ html, body {
   line-height: 1.5;
 }
 
-/* ===== Desktop: sembunyikan kontrol sentuh (ada keyboard+mouse) ===== */
+/* ===== Desktop: joystick sembunyi, skill TAMPIL bar tengah ala RPG ===== */
 @media (hover: hover) and (pointer: fine) {
-  #joystick-base,
-  #attack-btn,
-  #skill-btn, #skill-btn-2, #skill-btn-3 { display: none; }
-  #bottom-bar { justify-content: space-between; }
+  #joystick-base { display: none; }
+  /* menu atas pindah ke quick-menu kanan; gold ikut player-frame */
+  #top-menu { display: none; }
+  /* overlay rotate + animasinya tidak pernah tampil di desktop */
+  #rotate-hint { display: none !important; }
+  #rotate-hint .rotate-icon { animation: none; }
+  /* panel target tengah-atas */
+  #target-frame {
+    position: fixed;
+    top: calc(8px + env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    z-index: 26;
+    flex-basis: 360px;
+    max-width: 400px;
+    padding: 10px 16px 10px 10px;
+  }
+  #target-portrait {
+    width: 60px;
+    height: 60px;
+    font-size: 32px;
+  }
+  #target-name { font-size: 14px; }
+  #target-bars .bar { height: 17px; }
+  /* cluster skill pin kanan-bawah (di bawah quick-menu) */
+  #bottom-bar { justify-content: flex-end; }
+  #action-cluster {
+    position: fixed;
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    z-index: 25;
+    gap: 10px;
+  }
+  /* job-select vertikal di bawah status bar */
+  #job-select {
+    position: fixed;
+    left: calc(12px + env(safe-area-inset-left));
+    top: 150px;
+    flex-direction: column;
+    z-index: 25;
+  }
+  #minimap-wrap { width: 150px; height: 150px; top: calc(8px + env(safe-area-inset-top)); }
+  #skill-btn, #skill-btn-2, #skill-btn-3 {
+    width: 58px;
+    height: 58px;
+    font-size: 26px;
+  }
+  #attack-btn {
+    width: 88px;
+    height: 88px;
+    font-size: 38px;
+    box-shadow: 0 0 0 2px #0e0b06, 0 0 26px rgba(239,68,68,.6), 0 4px 14px rgba(0,0,0,.5);
+  }
+  #potion-btn, #interact-btn { width: 58px; height: 58px; font-size: 24px; }
+  .key { font-size: 10px; }
 }
 
 /* Overlay putar ke lanskap: hanya perangkat sentuh portrait */
@@ -352,18 +428,111 @@ html, body {
   .bar { height: 10px; }
   #job-name { font-size: 10px; }
   #top-menu button { width: 36px; height: 36px; font-size: 18px; }
-  #gold { font-size: 11px; padding: 6px 8px; }
+  #gold-row { font-size: 11px; }
   #bottom-bar { padding-top: 6px; }
-  #hud-pos { display: none; }
-  #minimap-wrap { width: 96px; height: 96px; top: 62px; }
+  #minimap-wrap { width: 96px; height: 96px; }
 }
 
 /* Layar sempit: ringkas frame + sembunyikan posisi */
 @media (max-width: 700px) {
   #player-frame { flex-basis: 180px; padding: 6px 8px 6px 6px; }
-  #hud-pos { display: none; }
   #job-select button { padding: 5px 8px; font-size: 11px; }
-  #gold { font-size: 12px; padding: 6px 8px; }
+  #gold-row { font-size: 11px; }
+}
+
+/* ===== Menu cepat kanan + chat: desktop saja ===== */
+#quick-menu, #chat-panel { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  #quick-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: fixed;
+    right: calc(14px + env(safe-area-inset-right));
+    bottom: 120px;
+    z-index: 25;
+    pointer-events: auto;
+  }
+  #quick-menu button {
+    width: 58px;
+    padding: 6px 0 4px;
+    border-radius: 12px;
+    border: 2px solid #c9a227;
+    background: linear-gradient(180deg, #2c2416, #14100a);
+    box-shadow: 0 0 0 2px #0e0b06, 0 2px 8px rgba(0,0,0,.55);
+    font-size: 22px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  #quick-menu button small { font-size: 8px; color: #f5d67b; letter-spacing: 1px; }
+  #quick-menu button:active { transform: scale(.92); }
+
+  #chat-panel {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: calc(14px + env(safe-area-inset-left));
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: min(270px, 30vw);
+    height: 168px;
+    background: linear-gradient(180deg, rgba(30,24,14,.92), rgba(12,9,5,.92));
+    border: 2px solid #c9a227;
+    box-shadow: 0 0 0 2px #0e0b06, 0 2px 10px rgba(0,0,0,.6);
+    border-radius: 12px;
+    z-index: 25;
+    pointer-events: auto;
+    overflow: hidden;
+  }
+  #chat-tabs { display: flex; gap: 4px; padding: 6px 8px 0; }
+  #chat-tabs button {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #c9b68a;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+  #chat-tabs button.active { color: #f5d67b; border-bottom-color: #c9a227; }
+  #chat-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #e8dcc0;
+    touch-action: pan-y;
+  }
+  .chat-msg { margin: 2px 0; }
+  .chat-msg b { color: #9ec5ff; }
+  .chat-msg.sys b { color: #f5d67b; }
+  #chat-input-row { display: flex; gap: 4px; padding: 4px 6px 6px; }
+  #chat-input {
+    flex: 1;
+    min-width: 0;
+    background: #0f0c08;
+    border: 1px solid #8a6d2f;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+  }
+  #chat-send {
+    background: linear-gradient(180deg, #e8b64c, #9a6714);
+    border: 2px solid #8a5a17;
+    border-radius: 8px;
+    color: #1a1206;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0 10px;
+  }
 }
 
 /* ===== Panels tengah (perkamen RPG) ===== */

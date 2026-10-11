@@ -8,6 +8,9 @@ import { initHud } from './ui/hud';
 import { initGamePanels } from './ui/gamePanels';
 import { initSettings } from './ui/settings';
 import { initMinimap } from './ui/minimap';
+import { initChat } from './ui/chat';
+import { initTargetPanel } from './ui/targetPanel';
+import { initQuickMenu } from './ui/quickmenu';
 import { initLandscape } from './ui/orientation';
 
 const container = document.getElementById('game-container')!;
@@ -20,6 +23,9 @@ initHud();
 initGamePanels();
 initSettings();
 initMinimap();
+initChat();
+initTargetPanel();
+initQuickMenu();
 initLandscape();
 
 // Pilih job (3 class). Default dari save terakhir, fallback warrior.

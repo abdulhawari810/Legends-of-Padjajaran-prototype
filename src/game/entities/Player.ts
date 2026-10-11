@@ -21,6 +21,9 @@ import {
 import { loadJobSave, saveJobSave, saveMeta, loadMeta } from '../data/save';
 import { SKILLS } from '../data/skills';
 import { sfxPotion } from '../audio';
+import { isBehindHud, worldText } from '../text';
+import { addSkillUse } from '../data/stats';
+import { checkSkills } from '../data/achievements';
 
 export type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -58,6 +61,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   projectileTexture = 'proj-arrow';
   dead = false;
   potionCooldownMs = 5000;
+  private nameText!: Phaser.GameObjects.Text;
+  private lastTitle = '';
   private lastAttackAt = 0;
   private lastPotionAt = -9999;
   private lastSkillAt: Record<JobId, [number, number, number]> = {
@@ -96,6 +101,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.setJob(initialJob);
 
+    this.nameText = worldText(scene, x, y - 44, '', {
+      fontSize: '11px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      padding: { x: 4, y: 1 }
+    }).setOrigin(0.5);
+
     window.addEventListener('select-job', this.onSelectJob);
     window.addEventListener('use-potion', this.onUsePotion);
     window.addEventListener('equipment-changed', this.onEquipmentChanged);
@@ -120,6 +133,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     window.removeEventListener('select-job', this.onSelectJob);
     window.removeEventListener('use-potion', this.onUsePotion);
     window.removeEventListener('equipment-changed', this.onEquipmentChanged);
+    try {
+      this.nameText?.destroy();
+    } catch {
+      // abaikan
+    }
     super.destroy(fromScene);
   }
 
@@ -129,7 +147,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (now - this.lastPotionAt < this.potionCooldownMs) return false;
     if (this.hp >= this.derived.maxHp) return false;
     this.lastPotionAt = now;
-    this.hp = Math.min(this.derived.maxHp, this.hp + 50);
+    // Batch T: potion 40% max HP (min 50) agar relevan di level tinggi
+    const heal = Math.max(50, Math.round(this.derived.maxHp * 0.4));
+    this.hp = Math.min(this.derived.maxHp, this.hp + heal);
     this.emitStats();
     sfxPotion();
     window.dispatchEvent(new CustomEvent('potion-consumed'));
@@ -402,6 +422,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   update(time: number, delta: number) {
     // Y-sort dari kaki (sprite 32x48): yang kakinya lebih bawah tampil di depan
     this.setDepth(10 + ((this.y + 24) * 0.01));
+    // label nama + level mengikuti (sembunyi saat ketutup HUD)
+    const title = `${this.jobId.toUpperCase()} Lv.${this.level}`;
+    if (title !== this.lastTitle) {
+      this.lastTitle = title;
+      this.nameText.setText(title);
+    }
+    this.nameText.setPosition(this.x, this.y - 44);
+    this.nameText.setDepth(this.depth + 0.06);
+    this.nameText.setVisible(!isBehindHud(this.scene, this.x, this.y - 44));
     if (this.dead) {
       this.setVelocity(0, 0);
       return;
@@ -476,6 +505,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   markSkilled(now: number, slot = 0) {
     const arr = this.lastSkillAt[this.jobId];
     if (arr) arr[slot] = now;
+    addSkillUse();
+    checkSkills();
   }
 
   skillCooldownLeft(now: number, cooldownMs: number, slot = 0): number {
