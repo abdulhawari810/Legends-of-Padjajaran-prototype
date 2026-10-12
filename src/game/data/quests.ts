@@ -2,12 +2,18 @@ export interface QuestDef {
   id: string;
   title: string;
   desc: string;
-  killTarget: string; // monster id
+  killTarget: string; // monster id ('' bila objektif non-kill)
   killCount: number;
   rewardExp: number;
   rewardItemId?: string;
+  rewardGold?: number;
   /** quest prasyarat (harus done dulu agar terbuka) */
   requires?: string;
+  /** objektif non-kill (salah satu): kumpulkan / beli / jual / setor */
+  gather?: { item: string; count: number };
+  buy?: number;
+  sell?: number;
+  deposit?: number;
 }
 
 export const QUESTS: QuestDef[] = [
@@ -18,6 +24,57 @@ export const QUESTS: QuestDef[] = [
     killTarget: 'slime',
     killCount: 1,
     rewardExp: 10
+  },
+  {
+    id: 'q-shop-01',
+    title: 'Belanja Pertama',
+    desc: 'Beli 1 barang dari Pedagang Keliling.',
+    killTarget: '',
+    killCount: 0,
+    rewardExp: 15,
+    buy: 1
+  },
+  {
+    id: 'q-sell-01',
+    title: 'Dagang Perdana',
+    desc: 'Jual 1 barang ke Pedagang Keliling.',
+    killTarget: '',
+    killCount: 0,
+    rewardExp: 15,
+    requires: 'q-shop-01',
+    sell: 1
+  },
+  {
+    id: 'q-bank-01',
+    title: 'Nabung Aman',
+    desc: 'Setor total 50G ke Bankir (akumulasi).',
+    killTarget: '',
+    killCount: 0,
+    rewardExp: 20,
+    requires: 'q-sell-01',
+    deposit: 50
+  },
+  {
+    id: 'q-mine-01',
+    title: 'Belajar Nambang',
+    desc: 'Panen 3 Iron Ore (diam di dekat node batu 3.5 detik).',
+    killTarget: '',
+    killCount: 0,
+    rewardExp: 25,
+    rewardGold: 10,
+    requires: 'q-start-01',
+    gather: { item: 'iron-ore', count: 3 }
+  },
+  {
+    id: 'q-herb-01',
+    title: 'Racikan Herbal',
+    desc: 'Panen 3 Wild Herb (diam di dekat tanaman 3.5 detik).',
+    killTarget: '',
+    killCount: 0,
+    rewardExp: 25,
+    rewardGold: 10,
+    requires: 'q-mine-01',
+    gather: { item: 'herb', count: 3 }
   },
   {
     id: 'q-slime-01',

@@ -47,7 +47,10 @@ Mati = respawn di heal zone dengan penalti 5% gold.
 - **3 map** via portal: Greenfield → Dark Forest → Crystal Cave (+heal zone)
 - **8 monster + 2 boss** (Elite & Troll berpola AoE telegraph + summon),
   AI aggro/provoke/leash-evade (immune + heal saat pulang)
-- **12 quest chain + 3 bounty harian + 11 achievement** + statistik
+- **11 quest chain + 3 bounty harian + 13 achievement** + statistik
+- **Kota NPC**: Tetua (quest/tempa), Pedagang (trade), Bankir (vault+stash),
+  3 Pelatih (skill Lv1-3)
+- **Atribut manual** (+5 poin/level), **profesi** mining & herbalism
 - **Shop** (beli potion/jual drop), **tempa +1..+5**, atribut New World ×
   combat WoW (crit/dodge/block/haste/lifesteal)
 - **9 skill** (3/job, MP + cooldown per-slot), auto-target + syarat hadap

@@ -9,11 +9,15 @@ export interface GameStats {
   playtimeSec: number;
   visited: string[];
   skillUses: number;
+  buys: number;
+  sells: number;
+  deposited: number;
+  gathered: Record<string, number>;
 }
 
 const KEY = 'mmorpg-stats-v1';
 
-const FALLBACK: GameStats = { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0 };
+const FALLBACK: GameStats = { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0, buys: 0, sells: 0, deposited: 0, gathered: {} };
 
 export function getStats(): GameStats {
   try {
@@ -25,10 +29,14 @@ export function getStats(): GameStats {
       maxLevel: s.maxLevel ?? 1,
       playtimeSec: s.playtimeSec ?? 0,
       visited: s.visited ?? [],
-      skillUses: s.skillUses ?? 0
+      skillUses: s.skillUses ?? 0,
+      buys: s.buys ?? 0,
+      sells: s.sells ?? 0,
+      deposited: s.deposited ?? 0,
+      gathered: s.gathered ?? {}
     };
   } catch {
-    return { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0 };
+    return { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0, buys: 0, sells: 0, deposited: 0, gathered: {} };
   }
 }
 
@@ -84,6 +92,30 @@ export function visitMap(mapId: string) {
 export function addSkillUse() {
   const s = getStats();
   s.skillUses += 1;
+  persist(s);
+}
+
+export function addBuy() {
+  const s = getStats();
+  s.buys += 1;
+  persist(s);
+}
+
+export function addSell() {
+  const s = getStats();
+  s.sells += 1;
+  persist(s);
+}
+
+export function addDeposited(n: number) {
+  const s = getStats();
+  s.deposited += n;
+  persist(s);
+}
+
+export function addGathered(itemId: string, n = 1) {
+  const s = getStats();
+  s.gathered[itemId] = (s.gathered[itemId] ?? 0) + n;
   persist(s);
 }
 

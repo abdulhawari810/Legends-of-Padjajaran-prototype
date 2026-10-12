@@ -38,6 +38,12 @@
    Tombol sentuh sembunyi di `@media (hover:hover) and (pointer:fine)`.
 9. **Evade**: monster pulang = immune + heal + abaikan player sampai home.
    Damage saat evade tampilkan EVADE, bukan angka.
+10. **Tabrakan antar-entity = soft, bukan physics push.** DILARANG
+    `collider` player↔monster / monster↔monster (saling dorong + tembus
+    tembok + snapshot `filter()` basi). Pakai `nudgeMonster` (cek tembok
+    dulu) di loop update; player↔obstacle/NPC dan monster↔obstacle tetap
+    collider. Semua `setPosition` teleport (knockback/blink) wajib lewat
+    guard `blockedByObstacle`.
 
 ## Cara nambah konten (checklist)
 

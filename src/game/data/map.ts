@@ -11,6 +11,22 @@ export interface PortalDef {
   spawn: { x: number; y: number };
 }
 
+export interface NpcDef {
+  id: string;
+  name: string;
+  kind: 'elder' | 'vendor' | 'bank' | 'trainer';
+  job?: 'warrior' | 'mage' | 'archer';
+  x: number;
+  y: number;
+  greet: string;
+}
+
+export interface GatherDef {
+  kind: 'ore' | 'herb';
+  x: number;
+  y: number;
+}
+
 export interface MapDefShape {
   id: MapId;
   name: string;
@@ -22,13 +38,16 @@ export interface MapDefShape {
   readonly heightPx: number;
   playerSpawn: { x: number; y: number };
   healZone: { x: number; y: number; r: number };
+  /** Zona aman kota: monster tidak kejar/masuk (lepas aggro). Opsional. */
+  town?: { x: number; y: number; r: number };
   pond?: { x: number; y: number; rx: number; ry: number };
   trees: Array<{ x: number; y: number }>;
   houses: Array<{ x: number; y: number; w: number; h: number }>;
   monsterSpawns: Array<{ monsterId: string; x: number; y: number; count: number; level: number }>;
   obstacles: Array<{ x: number; y: number; w: number; h: number }>;
   portals: PortalDef[];
-  npc?: { x: number; y: number };
+  npcs: NpcDef[];
+  gather: GatherDef[];
 }
 
 function makeDef(d: Omit<MapDefShape, 'widthPx' | 'heightPx'>): MapDefShape {
@@ -47,11 +66,12 @@ export const MAP_DEF = makeDef({
   id: 'greenfield',
   name: 'Greenfield',
   theme: 'green',
-  widthTiles: 52,
-  heightTiles: 38,
+  widthTiles: 58,
+  heightTiles: 42,
   tileSize: 32,
   playerSpawn: { x: 640, y: 480 },
   healZone: { x: 640, y: 480, r: 70 },
+  town: { x: 640, y: 480, r: 300 },
   pond: { x: 200, y: 780, rx: 90, ry: 55 },
   trees: [
     { x: 120, y: 120 },
@@ -67,30 +87,48 @@ export const MAP_DEF = makeDef({
     { x: 1450, y: 300 },
     { x: 1520, y: 700 },
     { x: 1300, y: 1050 },
-    { x: 500, y: 1100 }
+    { x: 500, y: 1100 },
+    { x: 1600, y: 500 },
+    { x: 1500, y: 1000 },
+    { x: 700, y: 1250 }
   ],
   houses: [
     { x: 440, y: 200, w: 120, h: 80 },
     { x: 760, y: 620, w: 140, h: 90 }
   ],
   monsterSpawns: [
-    { monsterId: 'slime', x: 320, y: 300, count: 4, level: 1 },
-    { monsterId: 'goblin', x: 900, y: 350, count: 3, level: 2 },
-    { monsterId: 'skeleton', x: 640, y: 760, count: 2, level: 3 },
-    { monsterId: 'skeleton-elite', x: 860, y: 810, count: 1, level: 5 },
-    { monsterId: 'slime', x: 1300, y: 500, count: 3, level: 2 }
+    { monsterId: 'slime', x: 250, y: 250, count: 4, level: 1 },
+    { monsterId: 'goblin', x: 1000, y: 300, count: 3, level: 2 },
+    { monsterId: 'skeleton', x: 640, y: 880, count: 2, level: 3 },
+    { monsterId: 'skeleton-elite', x: 900, y: 830, count: 1, level: 5 },
+    { monsterId: 'slime', x: 1300, y: 500, count: 3, level: 2 },
+    { monsterId: 'goblin', x: 1450, y: 950, count: 2, level: 3 }
   ],
   obstacles: [
-    { x: 0, y: 0, w: 1664, h: 32 }, // top wall
-    { x: 0, y: 1184, w: 1664, h: 32 }, // bottom wall
-    { x: 0, y: 0, w: 32, h: 1216 }, // left
-    { x: 1632, y: 0, w: 32, h: 1216 }, // right
+    { x: 0, y: 0, w: 1856, h: 32 }, // top wall
+    { x: 0, y: 1312, w: 1856, h: 32 }, // bottom wall
+    { x: 0, y: 0, w: 32, h: 1344 }, // left
+    { x: 1824, y: 0, w: 32, h: 1344 }, // right
     { x: 440, y: 200, w: 120, h: 80 }, // rumah
     { x: 760, y: 620, w: 140, h: 90 }, // rumah
     { x: 110, y: 725, w: 180, h: 110 } // kolam (approx pond)
   ],
   portals: [{ x: 640, y: 70, r: 50, to: 'dark', spawn: { x: 640, y: 890 } }],
-  npc: { x: 640, y: 400 }
+  gather: [
+    { kind: 'ore', x: 300, y: 700 },
+    { kind: 'ore', x: 950, y: 780 },
+    { kind: 'herb', x: 500, y: 300 },
+    { kind: 'herb', x: 900, y: 600 },
+    { kind: 'herb', x: 1150, y: 400 }
+  ],
+  npcs: [
+    { id: 'elder', name: '🧙 Tetua Greenfield', kind: 'elder', x: 640, y: 400, greet: 'Bantu kami bersihkan monster, hadiah menantimu.' },
+    { id: 'vendor', name: '🛒 Pedagang Keliling', kind: 'vendor', x: 720, y: 470, greet: 'Beli potion, jual hasil buruanmu di sini!' },
+    { id: 'bank', name: '🏦 Bankir', kind: 'bank', x: 560, y: 540, greet: 'Simpan gold & barangmu. Brankas aman dari penalti mati.' },
+    { id: 'trainer-warrior', name: '⚔️ Pelatih Warrior', kind: 'trainer', job: 'warrior', x: 500, y: 400, greet: 'Otot dan keberanian! Tempa skill di sini.' },
+    { id: 'trainer-mage', name: '🔮 Pelatih Mage', kind: 'trainer', job: 'mage', x: 780, y: 420, greet: 'Rasakan aliran mana! Tempa skill di sini.' },
+    { id: 'trainer-archer', name: '🏹 Pelatih Archer', kind: 'trainer', job: 'archer', x: 640, y: 600, greet: 'Satu panah, satu nyawa. Tempa skill di sini.' }
+  ]
 });
 
 export const MAP_DARK = makeDef({
@@ -136,7 +174,15 @@ export const MAP_DARK = makeDef({
   portals: [
     { x: 640, y: 1010, r: 50, to: 'greenfield', spawn: { x: 640, y: 150 } },
     { x: 640, y: 70, r: 50, to: 'cave', spawn: { x: 704, y: 880 } }
-  ]
+  ],
+  gather: [
+    { kind: 'ore', x: 350, y: 600 },
+    { kind: 'ore', x: 850, y: 800 },
+    { kind: 'ore', x: 1200, y: 500 },
+    { kind: 'herb', x: 500, y: 300 },
+    { kind: 'herb', x: 1000, y: 850 }
+  ],
+  npcs: []
 });
 
 export const MAP_CAVE = makeDef({
@@ -171,7 +217,16 @@ export const MAP_CAVE = makeDef({
     { x: 1010, y: 700, w: 90, h: 90 }, // pilar
     { x: 584, y: 520, w: 240, h: 150 } // lava tengah
   ],
-  portals: [{ x: 704, y: 1000, r: 50, to: 'dark', spawn: { x: 640, y: 150 } }]
+  portals: [{ x: 704, y: 1000, r: 50, to: 'dark', spawn: { x: 640, y: 150 } }],
+  gather: [
+    { kind: 'ore', x: 400, y: 700 },
+    { kind: 'ore', x: 1000, y: 700 },
+    { kind: 'ore', x: 500, y: 250 },
+    { kind: 'ore', x: 900, y: 250 },
+    { kind: 'herb', x: 500, y: 850 },
+    { kind: 'herb', x: 900, y: 850 }
+  ],
+  npcs: []
 });
 
 export const MAPS: Record<MapId, MapDefShape> = {

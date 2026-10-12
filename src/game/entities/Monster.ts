@@ -34,7 +34,8 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.spawnY = y;
     scene.add.existing(this);
     scene.physics.add.existing(this);
-    this.setImmovable(true);
+    // movable + separasi visual: tembok statis selalu menang (tak bisa nyangkut),
+    // jarak dengan player dijaga kode separasi, bukan dorongan badan.
 
     this.baseScale = def.scale ?? 1;
     this.setScale(this.baseScale);
@@ -51,15 +52,35 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     this.hpBar = scene.add.graphics().setDepth(6);
     this.drawHpBar();
 
-    // pulse idle via scale agar tidak tarung dengan velocity kejar
-    scene.tweens.add({
-      targets: this,
-      scale: { from: this.baseScale, to: this.baseScale * 1.08 },
-      duration: 900 + Math.random() * 600,
-      yoyo: true,
-      repeat: -1,
-      ease: 'sine.inout'
-    });
+    // Batch BA-2: anim idle sheet bila ada, else pulse prosedural.
+    // (Anim digambar dari sheet; tekstur statis `monster-{id}` = frame 0.)
+    const idleKey = `monster-${def.id}-idle`;
+    const sheetKey = `monster-${def.id}-sheet`;
+    if (scene.anims.exists(idleKey) && scene.textures.exists(sheetKey)) {
+      this.setTexture(sheetKey);
+      this.play(idleKey);
+      // normalisasi: tampil ~40px (x boss scale), body ~26px tengah-bawah
+      const fh = this.height || 32;
+      const s = (40 / fh) * this.baseScale;
+      this.setScale(s);
+      const bw = 26 / s;
+      const bh = 24 / s;
+      this.setSize(bw, bh);
+      this.setOffset((this.width - bw) / 2, this.height - bh - 2);
+    } else if (this.baseScale <= 1) {
+      // prosedural normal: body sedikit lebih kecil dari frame
+      this.setSize(26, 24);
+      this.setOffset(3, 6);
+      // pulse idle via scale agar tidak tarung dengan velocity kejar
+      scene.tweens.add({
+        targets: this,
+        scale: { from: this.baseScale, to: this.baseScale * 1.08 },
+        duration: 900 + Math.random() * 600,
+        yoyo: true,
+        repeat: -1,
+        ease: 'sine.inout'
+      });
+    }
   }
 
   private drawHpBar() {
@@ -143,8 +164,9 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
     return false;
   }
 
-  /** AI kejar: return true jika dalam jarak serang */
-  chaseOrHold(px: number, py: number, now = 0): boolean {
+  /** AI kejar: return true jika dalam jarak serang.
+      town = zona aman: player di dalam = lepas aggro, monster di dalam = keluar. */
+  chaseOrHold(px: number, py: number, now = 0, town?: { x: number; y: number; r: number } | null): boolean {
     if (!this.alive) {
       this.setVelocity(0, 0);
       return false;
@@ -164,6 +186,16 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
       }
       this.scene.physics.moveTo(this, this.spawnX, this.spawnY, this.def.moveSpeed * 1.8);
       return false;
+    }
+    // zona aman kota: player di dalam = lepas aggro, monster di dalam = keluar
+    if (town) {
+      const playerInTown = Phaser.Math.Distance.Between(px, py, town.x, town.y) <= town.r;
+      const meInTown = Phaser.Math.Distance.Between(this.x, this.y, town.x, town.y) <= town.r;
+      if (playerInTown || meInTown) {
+        this.provokedUntil = 0;
+        this.returnHome();
+        return false;
+      }
     }
     const dist = Phaser.Math.Distance.Between(this.x, this.y, px, py);
     // leash: kalau terlalu jauh dari spawn (>400), masuk mode evade

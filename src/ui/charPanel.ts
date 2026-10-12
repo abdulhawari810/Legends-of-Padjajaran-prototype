@@ -2,6 +2,7 @@ import type { StatsSnapshot } from '../game/entities/Player';
 import { getItem } from '../game/data/items';
 import { getEnhance } from '../game/data/enhance';
 import { formatPlaytime, getStats, totalKills } from '../game/data/stats';
+import { getProf } from '../game/data/prof';
 
 // Panel karakter: tampilkan primary (New World) + derived (WoW) + slot senjata.
 export function initCharPanel() {
@@ -9,6 +10,20 @@ export function initCharPanel() {
   const elWeapon = document.getElementById('char-weapon')!;
   const elPrimary = document.getElementById('char-primary')!;
   const elDerived = document.getElementById('char-derived')!;
+
+  // delegasi klik tombol +1/-1/terapkan/batal/reset atribut (dirender ulang tiap stats-changed)
+  elPrimary.addEventListener('click', ((e: Event) => {
+    const act = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-act]');
+    if (act && !act.disabled) {
+      window.dispatchEvent(new CustomEvent(act.dataset.act!));
+      return;
+    }
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-attr]');
+    if (!btn || btn.disabled) return;
+    window.dispatchEvent(
+      new CustomEvent('allocate-attr', { detail: { stat: btn.dataset.attr, delta: Number(btn.dataset.delta ?? 1) } })
+    );
+  }) as EventListener);
 
   window.addEventListener('stats-changed', ((e: CustomEvent<StatsSnapshot>) => {
     const s = e.detail;
@@ -26,21 +41,44 @@ export function initCharPanel() {
         ? `<div class="stat"><span>🛡️ ${a.name} +${aLv}</span><b>+${a.def} Armor</b></div>`
         : `<div class="stat"><span>🛡️ Tanpa armor</span><b>-</b></div>`);
 
-    elPrimary.innerHTML = (
-      [
-        ['STR', s.primary.str, s.gearPrimary.str],
-        ['DEX', s.primary.dex, s.gearPrimary.dex],
-        ['INT', s.primary.int, s.gearPrimary.int],
-        ['FOC', s.primary.foc, s.gearPrimary.foc],
-        ['CON', s.primary.con, s.gearPrimary.con]
-      ] as Array<[string, number, number]>
-    )
-      .map(([k, v, bonus]) =>
-        bonus > 0
-          ? `<div class="stat"><span>${k}</span><b>${v} <em class="bonus">(+${bonus})</em></b></div>`
-          : `<div class="stat"><span>${k}</span><b>${v}</b></div>`
+    const keys = ['str', 'dex', 'int', 'foc', 'con'] as const;
+    const netPending = keys.reduce((a, k) => a + (s.pending[k] ?? 0), 0);
+    const poolPreview = s.freePoints - netPending;
+    const hasPending = keys.some((k) => (s.pending[k] ?? 0) !== 0);
+    const totalSpent = keys.reduce((a, k) => a + (s.spent[k] ?? 0), 0);
+    elPrimary.innerHTML =
+      `<div class="stat"><span>🎯 Poin bebas</span><b>${poolPreview}</b></div>` +
+      (
+        [
+          ['STR', 'str', s.primary.str, s.gearPrimary.str],
+          ['DEX', 'dex', s.primary.dex, s.gearPrimary.dex],
+          ['INT', 'int', s.primary.int, s.gearPrimary.int],
+          ['FOC', 'foc', s.primary.foc, s.gearPrimary.foc],
+          ['CON', 'con', s.primary.con, s.gearPrimary.con]
+        ] as Array<[string, string, number, number]>
       )
-      .join('');
+        .map(([k, key, v, bonus]) => {
+          const st = key as 'str' | 'dex' | 'int' | 'foc' | 'con';
+          const preview = v + (s.pending[st] ?? 0);
+          const canDec = (s.spent[st] ?? 0) + (s.pending[st] ?? 0) > 0 && poolPreview > 0;
+          return (
+            `<div class="stat attr-row"><span>${k}</span><span class="attr-group">` +
+            (canDec
+              ? `<button class="bag-btn attr-btn dec" data-attr="${key}" data-delta="-1">−1</button>`
+              : `<span class="attr-spacer"></span>`) +
+            `<b>${preview} <em class="bonus">(+${bonus})</em></b>` +
+            (poolPreview > 0
+              ? `<button class="bag-btn attr-btn" data-attr="${key}" data-delta="1">+1</button>`
+              : `<span class="attr-spacer"></span>`) +
+            `</span></div>`
+          );
+        })
+        .join('') +
+      (hasPending
+        ? `<div class="attr-reset-row"><button class="bag-btn attr-apply-btn" data-act="apply-attr">✔ Terapkan</button><button class="bag-btn attr-reset-btn" data-act="cancel-attr">✕ Batal</button></div>`
+        : totalSpent > 0
+          ? `<div class="attr-reset-row"><button class="bag-btn attr-reset-btn" data-act="reset-attr">🔄 Reset (20G)</button></div>`
+          : '');
 
     const d = s.derived;
     const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
@@ -65,6 +103,8 @@ export function initCharPanel() {
       .join('');
 
     const gs = getStats();
+    const mining = getProf('mining');
+    const herb = getProf('herb');
     const topKills = Object.entries(gs.kills)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
@@ -78,6 +118,8 @@ export function initCharPanel() {
         `<div class="stat"><span>Quest Klaim</span><b>${gs.claims}</b></div>` +
         `<div class="stat"><span>Max Lv</span><b>${gs.maxLevel}</b></div>` +
         `<div class="stat"><span>Main</span><b>${formatPlaytime(gs.playtimeSec)}</b></div>` +
+        `<div class="stat"><span>⛏️ Mining</span><b>Lv.${mining.lvl} (${mining.xp}xp)</b></div>` +
+        `<div class="stat"><span>🌿 Herbalism</span><b>Lv.${herb.lvl} (${herb.xp}xp)</b></div>` +
         (topKills ? `<div class="stat"><span>Top</span><b>${topKills}</b></div>` : '');
     }
   }) as EventListener);

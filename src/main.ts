@@ -29,7 +29,6 @@ initQuickMenu();
 initLandscape();
 
 // Pilih job (3 class). Default dari save terakhir, fallback warrior.
-import { JOBS } from './game/data/jobs';
 import { loadMeta } from './game/data/save';
 import { clearAllSave } from './game/data/save';
 import { initAudio, isMuted, setMuted, sfxClick } from './game/audio';
@@ -82,7 +81,6 @@ try {
 } catch {
   // abaikan save korup
 }
-void JOBS;
 
 setActive(initialJob);
 

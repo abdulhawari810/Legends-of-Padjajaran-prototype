@@ -7,7 +7,7 @@ export type WeaponKind = 'melee' | 'magic' | 'ranged';
 export interface ItemDef {
   id: string;
   name: string;
-  type: 'consumable' | 'weapon' | 'armor' | 'quest';
+  type: 'consumable' | 'weapon' | 'armor' | 'quest' | 'material';
   desc: string;
   heal?: number;
   // --- equip core ---
@@ -111,7 +111,9 @@ export const ITEMS: ItemDef[] = [
     def: 5,
     primaryBonus: { con: 2, str: 1 }
   },
-  { id: 'slime-gel', name: 'Slime Gel', type: 'quest', desc: 'Drop quest dari Slime.' }
+  { id: 'slime-gel', name: 'Slime Gel', type: 'quest', desc: 'Drop quest dari Slime.' },
+  { id: 'iron-ore', name: 'Iron Ore', type: 'material', desc: 'Hasil mining. Jual / bahan tempa.' },
+  { id: 'herb', name: 'Wild Herb', type: 'material', desc: 'Hasil herbalism. Jual.' }
 ];
 
 export function getItem(id: string): ItemDef | undefined {

@@ -9,6 +9,8 @@ export interface SkillDef {
   desc: string;
   mpCost: number;
   cooldownMs: number;
+  /** Waktu cast ms (0 = instan). Berkurang 0.5 dtk/Lv, min 1.5 dtk. */
+  castMs?: number;
 }
 
 export const SKILLS: Record<JobId, SkillDef[]> = {
@@ -43,9 +45,10 @@ export const SKILLS: Record<JobId, SkillDef[]> = {
       id: 'fireball',
       name: 'Fireball',
       icon: '🔥',
-      desc: 'Auto-target homing 200% dmg + ledakan 65px (50%).',
+      desc: 'Auto-target homing 200% dmg + ledakan 65px (50%). Cast 3.5 dtk (berkurang per level).',
       mpCost: 12,
-      cooldownMs: 5000
+      cooldownMs: 5000,
+      castMs: 3500
     },
     {
       id: 'frost-nova',

@@ -1,5 +1,5 @@
 import { ITEMS, getItem } from '../game/data/items';
-import { snapshotQuests } from '../game/data/questState';
+import { objectiveText, questNeed, snapshotQuests } from '../game/data/questState';
 import { getBounties } from '../game/data/bounty';
 import { snapshotAchievements } from '../game/data/achievements';
 import { getCount, removeItem, snapshotInventory } from '../game/data/inventory';
@@ -79,7 +79,6 @@ export function initGamePanels() {
     potionBtn.disabled = true;
     potionBtn.classList.add('cooling');
     const countEl = document.getElementById('potion-count');
-    const prevText = countEl?.textContent;
     let left = Math.ceil(ms / 1000);
     if (countEl) countEl.textContent = `${left}s`;
     const timer = window.setInterval(() => {
@@ -93,7 +92,6 @@ export function initGamePanels() {
         countEl.textContent = `${left}s`;
       }
     }, 1000);
-    void prevText;
   }) as EventListener);
 
   function renderBag() {
@@ -216,11 +214,13 @@ export function initGamePanels() {
           <small>Terkunci • selesaikan quest sebelumnya</small>
         </div>`;
         }
-        const state = q.claimed ? '✅ Selesai (diklaim)' : q.done ? '🎁 Siap klaim di Tetua 🧙' : `⚔️ ${Math.min(q.progress, q.killCount)}/${q.killCount}`;
+        const need = questNeed(q.id);
+        const prog = Math.min(q.progress, need);
+        const state = q.claimed ? '✅ Selesai (diklaim)' : q.done ? '🎁 Siap klaim di Tetua 🧙' : objectiveText(q, prog);
         return `<div class="quest-item ${q.done ? 'done' : ''}">
           <b>${q.claimed ? '✅' : q.done ? '🎁' : '📜'} ${q.title}</b>
           <p>${q.desc}</p>
-          <small>${state} • +${q.rewardExp} EXP${q.rewardItemId ? ' + 🎁' : ''}</small>
+          <small>${state} • +${q.rewardExp} EXP${q.rewardItemId ? ' + 🎁' : ''}${q.rewardGold ? ` +${q.rewardGold}G` : ''}</small>
         </div>`;
       })
       .join('');

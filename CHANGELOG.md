@@ -1,6 +1,12 @@
 # Changelog — Legends of Padjajaran (mmorpg-web)
 
-## 0.3.0 — Batch S–U + label nama
+## 0.4.0 — Batch V–Y
+- V: knockback crit + 5 poin atribut manual/level (ganti growth otomatis)
+- W: kota NPC (Tetua/vendor/bank/3 pelatih), trade, bank vault+stash,
+  quest beli/jual/setor + reward gold
+- X: skill Lv1-3 per job (dmg +30%/Lv, CD turun), upgrade di pelatih
+- Y: profesi mining/herbalism (node, gather E, level profesi), 2 quest,
+  material jual, 2 achievement
 - S: 3 bounty harian (elite/golem/troll), 5 achievement baru, statistik
   map & skill, monster berlevel per zona (skala HP/atk)
 - T: potion 40% max HP, docs/QA.md, betulkan hitung monster README

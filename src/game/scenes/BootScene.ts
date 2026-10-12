@@ -1,10 +1,28 @@
 import Phaser from 'phaser';
+import { MONSTER_SHEETS, PLAYER_FRAMES } from '../data/sprites';
 
 // BootScene: generate texture prosedural agar scaffolding jalan
 // tanpa asset eksternal. Nanti ganti dengan sprite sheet asli.
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
+  }
+
+  preload() {
+    // Batch BA-1: frame player eksternal (bila dikonfigurasi).
+    // Batch BA-2: sheet monster eksternal (bila dikonfigurasi).
+    // Gagal load = fallback prosedural di create().
+    if (PLAYER_FRAMES) {
+      Object.entries(PLAYER_FRAMES).forEach(([key, file]) => {
+        this.load.image(key, file);
+      });
+    }
+    Object.entries(MONSTER_SHEETS).forEach(([id, s]) => {
+      this.load.spritesheet(`monster-${id}-sheet`, s.file, {
+        frameWidth: s.fw,
+        frameHeight: s.fh,
+      });
+    });
   }
 
   create() {
@@ -126,6 +144,68 @@ export class BootScene extends Phaser.Scene {
       g.fillRect(27, 20, 8, 8);
       g.generateTexture('monster-troll', 48, 48);
       g.destroy();
+    }
+    // Batch Y: node gather
+    if (!this.textures.exists('node-ore')) {
+      const g = this.add.graphics();
+      g.fillStyle(0x57534e, 1);
+      g.fillRoundedRect(2, 10, 28, 20, 6);
+      g.fillStyle(0x9ca3af, 1);
+      g.fillRect(8, 4, 6, 8);
+      g.fillRect(18, 6, 6, 6);
+      g.fillStyle(0xfbbf24, 1);
+      g.fillRect(13, 16, 6, 6);
+      g.generateTexture('node-ore', 32, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('node-herb')) {
+      const g = this.add.graphics();
+      g.fillStyle(0x166534, 1);
+      g.fillRect(14, 12, 4, 18);
+      g.fillStyle(0x22c55e, 1);
+      g.fillEllipse(16, 10, 20, 14);
+      g.fillStyle(0x4ade80, 1);
+      g.fillCircle(12, 8, 4);
+      g.fillCircle(20, 7, 3);
+      g.generateTexture('node-herb', 32, 32);
+      g.destroy();
+    }
+    // Batch BA-2: sheet monster -> tekstur statis (frame 0) + anim idle.
+    // Gagal load = prosedural di atas tetap dipakai.
+    Object.entries(MONSTER_SHEETS).forEach(([id, s]) => {
+      const sheetKey = `monster-${id}-sheet`;
+      if (!this.textures.exists(sheetKey)) return;
+      const sheet = this.textures.get(sheetKey);
+      if (sheet.frameTotal <= 1) return;
+      this.sliceSheetFrame(sheetKey, s.fw, s.fh, `monster-${id}`, 0);
+      const animKey = `monster-${id}-idle`;
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(sheetKey, { start: s.start, end: Math.min(s.end, sheet.frameTotal - 1) }),
+          frameRate: s.rate,
+          repeat: -1,
+        });
+      }
+    });
+  }
+
+  /** Potong 1 frame dari sheet jadi tekstur statis (fallback/initial frame). */
+  private sliceSheetFrame(sheetKey: string, fw: number, fh: number, outKey: string, index: number) {
+    try {
+      const src = this.textures.get(sheetKey).getSourceImage() as HTMLImageElement;
+      if (this.textures.exists(outKey)) this.textures.remove(outKey);
+      const cols = Math.max(1, Math.floor(src.width / fw));
+      const sx = (index % cols) * fw;
+      const sy = Math.floor(index / cols) * fh;
+      const t = this.textures.createCanvas(outKey, fw, fh);
+      if (!t) return;
+      const ctx = t.getContext();
+      ctx.clearRect(0, 0, fw, fh);
+      ctx.drawImage(src, sx, sy, fw, fh, 0, 0, fw, fh);
+      t.refresh();
+    } catch {
+      // abaikan: prosedural tetap dipakai
     }
   }
 

@@ -612,6 +612,15 @@ html, body {
 }
 .bag-btn.equipped { background: linear-gradient(180deg, #4ade80, #166534); border-color: #22c55e; color: #06230f; }
 .bag-btn.locked { background: #27272a; border-color: #3f3f46; color: #a1a1aa; }
+.attr-btn { width: auto; min-height: 0; padding: 1px 10px; margin: 0; font-size: 12px; display: inline-block; }
+.attr-btn.dec { background: linear-gradient(180deg, #f87171, #991b1b); border-color: #7f1d1d; color: #fff; }
+.attr-row { align-items: center; gap: 6px; }
+.attr-group { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.attr-group > b { text-align: center; }
+.attr-spacer { display: inline-block; width: 40px; }
+.attr-reset-row { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.attr-reset-btn { width: auto; min-height: 0; padding: 4px 12px; font-size: 12px; }
+.attr-apply-btn { width: auto; min-height: 0; padding: 4px 12px; font-size: 12px; background: linear-gradient(180deg, #4ade80, #166534); border-color: #22c55e; color: #06230f; }
 #toast {
   position: fixed;
   bottom: calc(150px + env(safe-area-inset-bottom));

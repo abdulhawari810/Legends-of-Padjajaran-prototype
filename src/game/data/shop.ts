@@ -1,6 +1,7 @@
 import { getItem } from './items';
 import { addItem, getCount, removeItem } from './inventory';
 import { addGold, getGold, spendGold } from './currency';
+import { addBuy, addSell } from './stats';
 
 // Batch D: shop Tetua Greenfield. Gold sink (beli potion) + jual drop.
 export interface ShopBuy {
@@ -17,6 +18,8 @@ export const SHOP_BUY: ShopBuy[] = [{ id: 'potion-s', price: 20 }];
 
 export const SHOP_SELL: ShopSell[] = [
   { id: 'slime-gel', price: 5 },
+  { id: 'iron-ore', price: 4 },
+  { id: 'herb', price: 3 },
   { id: 'armor-chain', price: 30 },
   { id: 'armor-bone', price: 35 }
 ];
@@ -29,6 +32,8 @@ export function buyItem(itemId: string): { ok: boolean; reason?: string } {
   if (getGold() < entry.price) return { ok: false, reason: `Butuh ${entry.price}G` };
   if (!spendGold(entry.price)) return { ok: false, reason: 'Gold kurang' };
   addItem(itemId, 1);
+  addBuy();
+  window.dispatchEvent(new CustomEvent('shop-bought'));
   return { ok: true };
 }
 
@@ -38,5 +43,7 @@ export function sellItem(itemId: string): { ok: boolean; reason?: string } {
   if (getCount(itemId) <= 0) return { ok: false, reason: 'Tidak punya' };
   if (!removeItem(itemId, 1)) return { ok: false, reason: 'Gagal jual' };
   addGold(entry.price);
+  addSell();
+  window.dispatchEvent(new CustomEvent('shop-sold'));
   return { ok: true };
 }

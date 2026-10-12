@@ -5,6 +5,7 @@ export interface MinimapData {
   player: { x: number; y: number };
   monsters: Array<{ x: number; y: number; boss: boolean }>;
   npc: { x: number; y: number } | null;
+  npcs?: Array<{ x: number; y: number }>;
   portals: Array<{ x: number; y: number }>;
   view: { x: number; y: number; w: number; h: number };
 }
@@ -34,6 +35,7 @@ export function initMinimap() {
     };
     d.portals.forEach((p) => dot(p.x, p.y, 3, '#22d3ee'));
     if (d.npc) dot(d.npc.x, d.npc.y, 3, '#fbbf24');
+    (d.npcs ?? []).forEach((n) => dot(n.x, n.y, 3, '#fbbf24'));
     d.monsters.forEach((m) => dot(m.x, m.y, m.boss ? 3 : 2, m.boss ? '#c084fc' : '#ef4444'));
     dot(d.player.x, d.player.y, 3, '#ffffff');
     // bingkai kamera

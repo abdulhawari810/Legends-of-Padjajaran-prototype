@@ -1,5 +1,6 @@
 import { VirtualInput } from '../game/input/VirtualInput';
 import { SKILLS } from '../game/data/skills';
+import { getSkillLevel } from '../game/data/skillLevel';
 import type { JobId } from '../game/data/jobs';
 
 // Batch N: 3 tombol skill (slot 0/1/2). Icon + cooldown per job per slot.
@@ -16,7 +17,7 @@ export function initSkillButton() {
       if (!btn) return;
       const def = defs[i];
       if (!def) return;
-      btn.title = `${def.name} (${def.mpCost} MP, ${i + 1}) — ${def.desc}`;
+      btn.title = `${def.name} Lv.${getSkillLevel(jobId, i)} (${def.mpCost} MP, ${i + 1}) — ${def.desc}`;
       btn.innerHTML = `${def.icon}<span class="skill-cd"></span><span class="key">${i + 1}</span>`;
     });
   };

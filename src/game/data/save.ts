@@ -13,6 +13,10 @@ export interface JobSave {
   armorId: string | null;
   hp: number;
   mp: number;
+  /** Batch V: poin atribut bebas (opsional agar save lama tetap valid). */
+  freePoints?: number;
+  /** Jejak alokasi manual (untuk decrease). */
+  spent?: Primary;
 }
 
 export interface PosSave {

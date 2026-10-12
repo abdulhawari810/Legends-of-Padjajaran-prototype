@@ -18,6 +18,8 @@ export const ACHIEVEMENTS: AchDef[] = [
   { id: 'smith-5', name: 'Pandai Master', desc: 'Tempa equipment +5.', gold: 100 },
   { id: 'quest-5', name: 'Pahlawan Desa', desc: 'Selesaikan 5 quest (klaim).', gold: 50 },
   { id: 'level-10', name: 'Veteran', desc: 'Capai Lv.10.', gold: 100 },
+  { id: 'miner-10', name: 'Tukang Tambang', desc: 'Kumpulkan 10 Iron Ore.', gold: 40 },
+  { id: 'herbalist-10', name: 'Herbalis', desc: 'Kumpulkan 10 Wild Herb.', gold: 40 },
   { id: 'traveler', name: 'Penjelajah', desc: 'Kunjungi 3 map.', gold: 60 },
   { id: 'troll-1', name: 'Raja Gua Tumbang', desc: 'Kalahkan 1 Cave Troll.', gold: 80 },
   { id: 'rich-500', name: 'Kantong Tebal', desc: 'Pegang 500 gold sekaligus.', gold: 40 },
@@ -93,4 +95,10 @@ export function checkDeaths() {
 
 export function checkSkills() {
   if (getStats().skillUses >= 50) grant('skill-50');
+}
+
+export function checkGathers() {
+  const g = getStats().gathered;
+  if ((g['iron-ore'] ?? 0) >= 10) grant('miner-10');
+  if ((g['herb'] ?? 0) >= 10) grant('herbalist-10');
 }

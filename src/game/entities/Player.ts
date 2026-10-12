@@ -20,6 +20,7 @@ import {
 } from '../data/equipment';
 import { loadJobSave, saveJobSave, saveMeta, loadMeta } from '../data/save';
 import { SKILLS } from '../data/skills';
+import { skillCd } from '../data/skillLevel';
 import { sfxPotion } from '../audio';
 import { isBehindHud, worldText } from '../text';
 import { addSkillUse } from '../data/stats';
@@ -40,6 +41,9 @@ export interface StatsSnapshot {
   mp: number;
   equippedWeaponId: string | null;
   equippedArmorId: string | null;
+  freePoints: number;
+  spent: Primary;
+  pending: Primary;
 }
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -51,6 +55,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   exp = 0;
   expNext = expForLevel(1);
   primary: Primary = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
+  /** Batch V: poin atribut bebas dari level-up (alokasi manual). */
+  freePoints = 0;
+  /** Jejak alokasi TERSIMPAN per stat (untuk decrease). */
+  spent: Primary = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
+  /** Staging SEBELUM Apply (tidak tersimpan, hilang saat ganti job). */
+  pending: Primary = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
   derived!: Derived;
   hp = 1;
   mp = 1;
@@ -83,8 +93,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setCollideWorldBounds(true);
-    this.setSize(20, 20);
-    this.setOffset(6, 26);
+    // BA-1: sprite 64x64 (dulu 32x48) -> body tengah-bawah.
+    // Artwork chibi banyak padding transparan -> skala 1.4x agar proporsional.
+    this.setSize(26, 26);
+    this.setOffset(19, 34);
+    this.setScale(1.4);
 
     this.createAnims();
     this.setupInput();
@@ -101,7 +114,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.setJob(initialJob);
 
-    this.nameText = worldText(scene, x, y - 44, '', {
+    this.nameText = worldText(scene, x, y - 60, '', {
       fontSize: '11px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -112,6 +125,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     window.addEventListener('select-job', this.onSelectJob);
     window.addEventListener('use-potion', this.onUsePotion);
     window.addEventListener('equipment-changed', this.onEquipmentChanged);
+    window.addEventListener('allocate-attr', this.onAllocateAttr);
   }
 
   private onSelectJob = ((e: CustomEvent<JobId>) => {
@@ -128,11 +142,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.saveCurrentJob();
   }) as EventListener;
 
+  private onAllocateAttr = ((e: CustomEvent<string | { stat: string; delta: number }>) => {
+    const d = e.detail;
+    const stat = (typeof d === 'string' ? d : d.stat) as keyof Primary;
+    const delta = (typeof d === 'string' ? 1 : d.delta) as 1 | -1;
+    this.stageAttr(stat, delta);
+  }) as EventListener;
+
   destroy(fromScene?: boolean): void {
     // scene di-restart tiap pindah portal: lepas listener agar tidak ganda
     window.removeEventListener('select-job', this.onSelectJob);
     window.removeEventListener('use-potion', this.onUsePotion);
     window.removeEventListener('equipment-changed', this.onEquipmentChanged);
+    window.removeEventListener('allocate-attr', this.onAllocateAttr);
     try {
       this.nameText?.destroy();
     } catch {
@@ -241,6 +263,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.exp = Math.max(0, saved.exp);
       this.expNext = expForLevel(this.level);
       this.primary = { ...saved.primary };
+      this.freePoints = Math.max(0, saved.freePoints ?? 0);
+      const sp = saved.spent;
+      this.spent = {
+        str: Math.max(0, sp?.str ?? 0),
+        dex: Math.max(0, sp?.dex ?? 0),
+        int: Math.max(0, sp?.int ?? 0),
+        foc: Math.max(0, sp?.foc ?? 0),
+        con: Math.max(0, sp?.con ?? 0)
+      };
+      this.pending = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
       // restore equip, fallback ke starter bila tidak valid
       const w = saved.weaponId ?? starterWeaponFor(jobId);
       const a = saved.armorId ?? starterArmorFor(jobId);
@@ -256,6 +288,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.exp = 0;
       this.expNext = expForLevel(1);
       this.primary = { ...job.basePrimary };
+      this.freePoints = 0;
+      this.spent = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
+      this.pending = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
       // auto-pasang starter job agar core equip selalu valid
       equipWeapon(starterWeaponFor(jobId), jobId, 1);
       equipItem(starterArmorFor(jobId), jobId, 1);
@@ -293,7 +328,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     try {
       const now = this.scene?.time?.now ?? 0;
       const defs = SKILLS[jobId] ?? [];
-      const left = [0, 1, 2].map((i) => this.skillCooldownLeft(now, defs[i]?.cooldownMs ?? 0, i));
+      const left = [0, 1, 2].map((i) => this.skillCooldownLeft(now, skillCd(jobId, i, defs[i]?.cooldownMs ?? 0), i));
       window.dispatchEvent(new CustomEvent('skill-cooldown-sync', { detail: left }));
     } catch {
       // abaikan
@@ -310,11 +345,83 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         weaponId: getEquippedWeaponId(),
         armorId: getEquippedArmorId(),
         hp: Math.round(this.hp),
-        mp: Math.round(this.mp)
+        mp: Math.round(this.mp),
+        freePoints: this.freePoints,
+        spent: { ...this.spent }
       });
     } catch {
       // abaikan quota error
     }
+  }
+
+  /** Batch V: stage +1/-1 (preview, belum simpan). */
+  stageAttr(stat: keyof Primary, delta: 1 | -1): boolean {
+    if (this.dead) return false;
+    if (!(stat in this.primary)) return false;
+    if (delta > 0) {
+      const used = (Object.keys(this.pending) as Array<keyof Primary>).reduce((a, k) => a + this.pending[k], 0);
+      if (this.freePoints - used <= 0) return false;
+      this.pending[stat] += 1;
+    } else {
+      if (this.spent[stat] + this.pending[stat] <= 0) return false;
+      this.pending[stat] -= 1;
+    }
+    this.emitStats();
+    return true;
+  }
+
+  /** Net staging (0 = tidak ada perubahan). */
+  stagedNet(): number {
+    return (Object.keys(this.pending) as Array<keyof Primary>).reduce((a, k) => a + this.pending[k], 0);
+  }
+
+  /** Apply: simpan semua staging. */
+  applyStaged(): boolean {
+    if (this.dead || !this.hasStagedChange()) return false;
+    const keys = Object.keys(this.pending) as Array<keyof Primary>;
+    const net = keys.reduce((a, k) => a + this.pending[k], 0);
+    keys.forEach((k) => {
+      this.primary[k] = Math.max(0, this.primary[k] + this.pending[k]);
+      this.spent[k] = Math.max(0, this.spent[k] + this.pending[k]);
+      this.pending[k] = 0;
+    });
+    this.freePoints = Math.max(0, this.freePoints - net);
+    this.recalc(false);
+    this.emitStats();
+    this.saveCurrentJob();
+    return true;
+  }
+
+  private hasStagedChange(): boolean {
+    return (Object.keys(this.pending) as Array<keyof Primary>).some((k) => this.pending[k] !== 0);
+  }
+
+  /** Batalkan staging (tanpa biaya). */
+  clearStaged(): boolean {
+    if (!this.hasStagedChange()) return false;
+    (Object.keys(this.pending) as Array<keyof Primary>).forEach((k) => {
+      this.pending[k] = 0;
+    });
+    this.emitStats();
+    return true;
+  }
+
+  /** Reset: kembalikan SEMUA poin tersimpan + buang staging. Return jumlah poin. */
+  resetAllAttributes(): number {
+    if (this.dead) return 0;
+    let total = 0;
+    (Object.keys(this.primary) as Array<keyof Primary>).forEach((k) => {
+      total += this.spent[k];
+      this.primary[k] = Math.max(0, this.primary[k] - this.spent[k]);
+      this.spent[k] = 0;
+      this.pending[k] = 0;
+    });
+    if (total <= 0) return 0;
+    this.freePoints += total;
+    this.recalc(false);
+    this.emitStats();
+    this.saveCurrentJob();
+    return total;
   }
 
   private recalc(fullRestore = false) {
@@ -336,16 +443,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   addExp(amount: number): boolean {
     this.exp += amount;
     let leveled = false;
-    const job = JOBS.find((j) => j.id === this.jobId)!;
     while (this.exp >= this.expNext && this.level < 20) {
       this.exp -= this.expNext;
       this.level += 1;
       this.expNext = expForLevel(this.level);
-      this.primary.str += job.growthPerLevel.str;
-      this.primary.dex += job.growthPerLevel.dex;
-      this.primary.int += job.growthPerLevel.int;
-      this.primary.foc += job.growthPerLevel.foc;
-      this.primary.con += job.growthPerLevel.con;
+      // Batch V: growth otomatis diganti 5 poin bebas (alokasi manual)
+      this.freePoints += 5;
       this.recalc(true);
       leveled = true;
     }
@@ -375,7 +478,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       hp: Math.round(this.hp),
       mp: Math.round(this.mp),
       equippedWeaponId: getEquippedWeaponId(),
-      equippedArmorId: getEquippedArmorId()
+      equippedArmorId: getEquippedArmorId(),
+      freePoints: this.freePoints,
+      spent: { ...this.spent },
+      pending: { ...this.pending }
     };
   }
 
@@ -420,15 +526,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   update(time: number, delta: number) {
-    // Y-sort dari kaki (sprite 32x48): yang kakinya lebih bawah tampil di depan
-    this.setDepth(10 + ((this.y + 24) * 0.01));
+    // Y-sort dari kaki (sprite 64x64 @1.4x): yang kakinya lebih bawah tampil di depan
+    this.setDepth(10 + ((this.y + 40) * 0.01));
     // label nama + level mengikuti (sembunyi saat ketutup HUD)
     const title = `${this.jobId.toUpperCase()} Lv.${this.level}`;
     if (title !== this.lastTitle) {
       this.lastTitle = title;
       this.nameText.setText(title);
     }
-    this.nameText.setPosition(this.x, this.y - 44);
+    this.nameText.setPosition(this.x, this.y - 60);
     this.nameText.setDepth(this.depth + 0.06);
     this.nameText.setVisible(!isBehindHud(this.scene, this.x, this.y - 44));
     if (this.dead) {
