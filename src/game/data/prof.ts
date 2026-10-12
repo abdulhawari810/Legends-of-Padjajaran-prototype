@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 import type { NodeKind } from '../entities/GatherNode';
 
 // Batch Y: profesi mining & herbalism. Tiap panen +6 XP, butuh lvl*12.
@@ -22,7 +22,7 @@ export function rollGatherLoot(kind: NodeKind, rand: () => number = Math.random)
   return t.min + Math.floor(rand() * (t.max - t.min + 1));
 }
 
-const KEY = 'mmorpg-prof-v1';
+const KEY = (): string => scopedKey('mmorpg-prof-v1');
 
 function blank(): ProfState {
   return { lvl: 1, xp: 0 };
@@ -30,7 +30,7 @@ function blank(): ProfState {
 
 function load(): Record<ProfKind, ProfState> {
   try {
-    const s = loadJSON<Partial<Record<ProfKind, ProfState>>>(KEY, {});
+    const s = loadJSON<Partial<Record<ProfKind, ProfState>>>(KEY(), {});
     const norm = (p?: Partial<ProfState>): ProfState => ({
       lvl: Math.max(1, Math.round(p?.lvl ?? 1)),
       xp: Math.max(0, p?.xp ?? 0)
@@ -44,7 +44,7 @@ function load(): Record<ProfKind, ProfState> {
 let prof: Record<ProfKind, ProfState> = load();
 
 function persist() {
-  saveJSON(KEY, prof);
+  saveJSON(KEY(), prof);
 }
 
 export function getProf(kind: ProfKind): ProfState {

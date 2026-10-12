@@ -18,6 +18,76 @@
   </head>
   <body>
     <div id="app">
+      <!-- ===== Auth: layar login / register (disembunyikan setelah masuk) ===== -->
+      <div id="auth-screen" class="auth-screen">
+        <div class="auth-card">
+          <div class="auth-brand">
+            <span class="auth-brand-icon">⚔️</span>
+            <div>
+              <div class="auth-brand-title">Legends of Padjajaran</div>
+              <div class="auth-brand-sub">RPG 2D — Local Account</div>
+            </div>
+          </div>
+
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-auth-tab="login">Masuk</button>
+            <button class="auth-tab" data-auth-tab="register">Daftar</button>
+          </div>
+
+          <div id="auth-legacy-note" class="auth-note hidden">
+            Save lama terdeteksi. Ia akan jadi profil pertama otomatis.
+          </div>
+
+          <form id="auth-form" autocomplete="off">
+            <label class="auth-label" for="auth-username">Nama</label>
+            <input
+              id="auth-username"
+              class="auth-input"
+              type="text"
+              maxlength="16"
+              autocomplete="username"
+              placeholder="3-16 karakter: huruf/angka/_"
+            />
+            <label class="auth-label" for="auth-password">Password</label>
+            <input
+              id="auth-password"
+              class="auth-input"
+              type="password"
+              maxlength="64"
+              autocomplete="current-password"
+              placeholder="Minimal 4 karakter"
+            />
+            <div id="auth-error" class="auth-error"></div>
+            <button id="auth-submit" class="auth-submit" type="submit">Masuk</button>
+          </form>
+
+          <div id="auth-profiles" class="auth-profiles"></div>
+
+          <div class="auth-foot">
+            Progres disimpan lokal di perangkat ini. Tidak ada server &amp; tidak ada
+            sinkronisasi antar perangkat.
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Auth: layar pemilihan job (karakter baru) ===== -->
+      <div id="job-create-screen" class="auth-screen hidden">
+        <div class="auth-card wide">
+          <div class="auth-brand">
+            <span class="auth-brand-icon" id="jobc-icon">🎲</span>
+            <div>
+              <div class="auth-brand-title">Pilih Class</div>
+              <div class="auth-brand-sub" id="jobc-sub">Pilihan ini permanen.</div>
+            </div>
+          </div>
+          <div id="jobc-list" class="jobc-list"></div>
+          <div class="auth-foot">
+            Class <b>tidak bisa diganti</b> setelah karakter dibuat. Atribut awal dan
+            skill berbeda tipis tiap class.
+          </div>
+        </div>
+      </div>
+
       <div id="game-container"></div>
       <div id="ui-overlay">
         <!-- TOP HUD ala MMORPG -->
@@ -40,6 +110,7 @@
               <div id="gold-row">💰 <span id="gold">0</span></div>
             </div>
           </div>
+          <div id="buff-bar" class="hidden"></div>
           <div id="target-frame" class="hidden">
             <div id="target-portrait">👹</div>
             <div id="target-bars">
@@ -76,9 +147,26 @@
             <button id="interact-btn" class="hidden" aria-label="Bicara">
               💬
             </button>
-            <button id="potion-btn" aria-label="Potion">
-              🧪<span id="potion-count">x3</span>
-            </button>
+            <div id="quick-slots" class="quick-slots">
+              <button id="quick-btn-0" class="quick-btn kind-hp" data-slot="0" aria-label="Slot 1">
+                <span class="q-key">1</span>
+                <span class="q-icon">🧪</span>
+                <span class="q-count">x0</span>
+                <span class="q-cd"></span>
+              </button>
+              <button id="quick-btn-1" class="quick-btn kind-mp" data-slot="1" aria-label="Slot 2">
+                <span class="q-key">2</span>
+                <span class="q-icon">🔮</span>
+                <span class="q-count">x0</span>
+                <span class="q-cd"></span>
+              </button>
+              <button id="quick-btn-2" class="quick-btn kind-food" data-slot="2" aria-label="Slot 3">
+                <span class="q-key">3</span>
+                <span class="q-icon">🍖</span>
+                <span class="q-count">x0</span>
+                <span class="q-cd"></span>
+              </button>
+            </div>
             <button id="skill-btn" aria-label="Skill 1">
               🌪️<span class="skill-cd"></span><span class="key">1</span>
             </button>
@@ -134,46 +222,147 @@
         </div>
       </div>
       <!-- Panels -->
-      <div id="char-panel" class="panel hidden">
-        <div class="char-head">
-          <b id="char-title">Warrior Lv.1</b>
-          <button id="char-close">✕</button>
+      <div id="char-panel" class="panel char-panel hidden">
+        <div class="cp-head">
+          <button id="char-back" class="cp-head-btn" aria-label="Kembali">◀</button>
+          <div class="cp-head-title">Detail Karakter</div>
+          <button id="char-close" class="cp-head-btn" aria-label="Tutup">✕</button>
         </div>
-        <div class="char-section">
-          <b>Equipment</b>
-          <div id="char-weapon"></div>
-        </div>
-        <div class="char-section">
-          <b>Primary</b>
-          <div id="char-primary"></div>
-        </div>
-        <div class="char-section">
-          <b>Combat Statistik</b>
-          <div id="char-derived"></div>
-        </div>
-        <div class="char-section">
-          <b>Statistik</b>
-          <div id="char-stats"></div>
-        </div>
-        <div class="char-section">
-          <b>Save</b>
-          <div>
-            <small id="save-status">Autosave tiap 5s + saat EXP/quest.</small>
+        <div class="cp-body">
+          <!-- Kolom kiri: artwork karakter -->
+          <div class="cp-art">
+            <div class="cp-art-frame">
+              <div class="cp-art-glow"></div>
+              <img id="cp-art-img" class="cp-art-img" alt="" draggable="false" />
+            </div>
+            <div class="cp-art-name">
+              <span id="cp-art-icon">⚔️</span><span id="char-title">WARRIOR</span>
+            </div>
+            <div class="cp-art-class" id="cp-art-class">Warrior</div>
           </div>
-          <button id="btn-reset-save" class="bag-btn">Reset Save</button>
+          <!-- Kolom kanan: tab vertikal + isi -->
+          <div class="cp-side">
+            <nav class="cp-tabs" id="cp-tabs">
+              <button class="cp-tab active" data-view="status">Status</button>
+              <button class="cp-tab" data-view="ability">Ability</button>
+              <button class="cp-tab" data-view="quest">Quest</button>
+              <button class="cp-tab" data-view="skill">Skill</button>
+            </nav>
+            <div class="cp-views">
+              <section class="cp-view active" data-view="status">
+                <div class="cp-name-row">
+                  <span class="cp-stars" id="cp-stars">☆☆☆☆☆</span>
+                  <span class="cp-class-name" id="cp-class-name">Warrior</span>
+                </div>
+                <div class="cp-lv-row">
+                  <span class="cp-lv-label">Lv</span>
+                  <span class="cp-lv-num" id="cp-lv">1</span>
+                  <span class="cp-slash">/</span>
+                  <span class="cp-lv-max">20</span>
+                  <div class="cp-exp-bar"><div id="cp-exp-fill"></div></div>
+                  <span class="cp-next">Next <b id="cp-exp-next">0</b></span>
+                  <button id="cp-plus" class="cp-plus" title="Alokasi atribut">+</button>
+                </div>
+                <div class="cp-vital">
+                  <span class="cp-v-ico">❤</span><span class="cp-v-label">HP</span>
+                  <b id="cp-hp">0</b><span class="cp-v-sep">/</span><span id="cp-hp-max">0</span>
+                </div>
+                <div class="cp-vital">
+                  <span class="cp-v-ico mp">◆</span><span class="cp-v-label">MP</span>
+                  <b id="cp-mp">0</b><span class="cp-v-sep">/</span><span id="cp-mp-max">0</span>
+                </div>
+                <div class="cp-stat-grid" id="char-derived"></div>
+                <div class="cp-sub">Equipment</div>
+                <div id="char-weapon"></div>
+                <div class="cp-sub">Buff aktif</div>
+                <div id="cp-buffs" class="cp-buffs">Tidak ada buff.</div>
+              </section>
+              <section class="cp-view" data-view="ability">
+                <div class="cp-sub">Poin atribut</div>
+                <div id="char-primary"></div>
+                <div class="cp-hint" id="cp-ability-hint"></div>
+              </section>
+              <section class="cp-view" data-view="quest">
+                <div id="char-stats"></div>
+                <div class="cp-sub">Quest &amp; Pencapaian</div>
+                <div id="cp-quest-list" class="cp-quest-list"></div>
+              </section>
+              <section class="cp-view" data-view="skill">
+                <div class="cp-sub">Skill karakter</div>
+                <div id="cp-skill-list" class="cp-skill-list"></div>
+                <div class="cp-hint">
+                  Naikkan level skill di Pelatih kota (⚔️/🔮/🏹).
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="cp-foot">
+          <button class="cp-foot-btn ghost" id="cp-btn-ability">✦ Ability Board</button>
+          <button class="cp-foot-btn" id="cp-btn-weapon">⚔ Weapon</button>
+          <button class="cp-foot-btn" id="cp-btn-equip">🛡 Equip</button>
+          <button class="cp-foot-btn" id="cp-btn-skill">📖 Skill</button>
+        </div>
+        <div class="cp-save-row">
+          <small id="save-status">Autosave tiap 5s + saat EXP/quest.</small>
+          <div class="cp-save-actions">
+            <span id="cp-profile-name" class="cp-profile-chip" title="Profil aktif">—</span>
+            <button id="btn-wipe-save" class="bag-btn cp-reset">Hapus Progres</button>
+            <button id="btn-logout" class="bag-btn cp-reset danger">Logout</button>
+          </div>
         </div>
       </div>
-      <div id="bag-panel" class="panel hidden">
+      <div id="bag-panel" class="panel bag-panel hidden">
         <div class="char-head">
-          <b>🎒 Tas</b><button id="bag-close">✕</button>
+          <b>⚔️ Equipment</b><button id="bag-close">✕</button>
         </div>
-        <div id="bag-grid"></div>
+        <div id="bag-quickbar" class="bag-quickbar"></div>
+        <div class="bag-layout">
+          <!-- Kolom kiri: karakter + gear slot + vital -->
+          <div class="bag-left">
+            <div class="bag-doll">
+              <div class="bag-doll-glow"></div>
+              <img id="bag-doll-img" class="bag-doll-img" alt="" draggable="false" />
+              <div class="bag-doll-base"></div>
+            </div>
+            <div id="bag-char-name" class="bag-char-name">WARRIOR</div>
+            <div class="bag-lv-row">
+              <span id="bag-lv" class="bag-lv-num">1</span>
+              <span class="bag-lv-label">Level</span>
+              <div class="bag-lv-bar"><div id="bag-lv-fill"></div></div>
+              <span id="bag-lv-pct" class="bag-lv-pct">0.0%</span>
+            </div>
+            <div class="bag-gear">
+              <div class="bag-gear-col" id="bag-gear-left"></div>
+              <div class="bag-gear-col" id="bag-gear-right"></div>
+            </div>
+            <div class="bag-vitals">
+              <div id="bag-vital-bars" class="bag-vital-bars"></div>
+              <div id="bag-vital-list" class="bag-vital-list"></div>
+            </div>
+          </div>
+          <!-- Kolom kanan: filter + grid tas -->
+          <div class="bag-right">
+            <div id="bag-tabs" class="bag-tabs"></div>
+            <div id="bag-grid" class="bag-grid"></div>
+            <div id="bag-detail" class="bag-detail">
+              <div class="bag-detail-txt">
+                <b id="bag-detail-name">—</b>
+                <small id="bag-detail-desc">Pilih item untuk melihat detail.</small>
+              </div>
+              <div class="bag-detail-act">
+                <button class="bag-btn bag-act" id="bag-use-btn" data-act="use">Pakai</button>
+                <button class="bag-btn bag-act unequip-btn" id="bag-unequip-btn" data-act="unequip" disabled>Lepas</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="quest-panel" class="panel hidden">
+      <div id="quest-panel" class="panel quest-panel hidden">
         <div class="char-head">
           <b>📜 Quest</b><button id="quest-close">✕</button>
         </div>
-        <div id="quest-list"></div>
+        <div id="quest-list" class="quest-list"></div>
       </div>
       <div id="npc-panel" class="panel hidden">
         <div class="char-head">

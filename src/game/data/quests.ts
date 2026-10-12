@@ -1,4 +1,4 @@
-export interface QuestDef {
+﻿export interface QuestDef {
   id: string;
   title: string;
   desc: string;

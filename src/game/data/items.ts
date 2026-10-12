@@ -1,8 +1,10 @@
-import type { JobId } from './jobs';
+﻿import type { JobId } from './jobs';
 import type { Primary } from './attributes';
 
 export type EquipSlot = 'weapon' | 'armor';
 export type WeaponKind = 'melee' | 'magic' | 'ranged';
+/** Jenis quick-slot (toolbar bawah). Menentukan item apa yang boleh dipasang. */
+export type QuickKind = 'hp' | 'mp' | 'food';
 
 export interface ItemDef {
   id: string;
@@ -20,10 +22,24 @@ export interface ItemDef {
   magicDef?: number;
   primaryBonus?: Partial<Primary>;
   critRateBonus?: number;
+  // --- consumable / quick-slot ---
+  /** Restore mana (persen max MP, dengan minimum). */
+  mana?: number;
+  /** Regenerasi HP per detik selama durMs. */
+  regenHp?: number;
+  /** Tambah atk flat selama durMs (buff makanan). */
+  buffAtk?: number;
+  /** Tambah armor flat selama durMs. */
+  buffDef?: number;
+  /** Lamanya buff aktif (ms). */
+  durMs?: number;
+  /** Jenis quick-slot yang menerima item ini. */
+  quick?: QuickKind;
+  icon?: string;
 }
 
 export const ITEMS: ItemDef[] = [
-  { id: 'potion-s', name: 'Small Potion', type: 'consumable', desc: 'Pulihkan 40% HP (min 50).', heal: 50 },
+  { id: 'potion-s', name: 'Small Potion', type: 'consumable', desc: 'Pulihkan 40% HP (min 50).', heal: 50, quick: 'hp', icon: '🧪' },
   {
     id: 'sword-wood',
     name: 'Wooden Sword',
@@ -113,9 +129,49 @@ export const ITEMS: ItemDef[] = [
   },
   { id: 'slime-gel', name: 'Slime Gel', type: 'quest', desc: 'Drop quest dari Slime.' },
   { id: 'iron-ore', name: 'Iron Ore', type: 'material', desc: 'Hasil mining. Jual / bahan tempa.' },
-  { id: 'herb', name: 'Wild Herb', type: 'material', desc: 'Hasil herbalism. Jual.' }
+  { id: 'herb', name: 'Wild Herb', type: 'material', desc: 'Hasil herbalism. Jual.' },
+  // --- consumable quick-slot: MP + food buff ---
+  {
+    id: 'potion-m',
+    name: 'Small Mana Potion',
+    type: 'consumable',
+    desc: 'Pulihkan 40% MP (min 40).',
+    mana: 40,
+    quick: 'mp',
+    icon: '🔮'
+  },
+  {
+    id: 'roast-meat',
+    name: 'Roast Meat',
+    type: 'consumable',
+    desc: 'Buff +5 Atk selama 30 detik.',
+    buffAtk: 5,
+    durMs: 30000,
+    quick: 'food',
+    icon: '🍖'
+  },
+  {
+    id: 'herbal-tonic',
+    name: 'Herbal Tonic',
+    type: 'consumable',
+    desc: 'Buff +4 Armor selama 30 detik.',
+    buffDef: 4,
+    durMs: 30000,
+    quick: 'food',
+    icon: '🍵'
+  }
 ];
 
 export function getItem(id: string): ItemDef | undefined {
   return ITEMS.find((i) => i.id === id);
+}
+
+/** Item consumable yang boleh dipasang ke quick-slot Certain jenis. */
+export function quickItemsFor(kind: QuickKind): ItemDef[] {
+  return ITEMS.filter((i) => i.type === 'consumable' && i.quick === kind);
+}
+
+/** true bila item boleh dipasang ke slot jenis `kind`. */
+export function fitsQuickSlot(id: string, kind: QuickKind): boolean {
+  return quickItemsFor(kind).some((i) => i.id === id);
 }

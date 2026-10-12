@@ -2,6 +2,7 @@ import { VirtualInput } from '../game/input/VirtualInput';
 import { SKILLS } from '../game/data/skills';
 import { getSkillLevel } from '../game/data/skillLevel';
 import type { JobId } from '../game/data/jobs';
+import { loadMeta } from '../game/data/save';
 
 // Batch N: 3 tombol skill (slot 0/1/2). Icon + cooldown per job per slot.
 const SLOTS = [0, 1, 2] as const;
@@ -11,7 +12,10 @@ export function initSkillButton() {
   const btns = BTN_IDS.map((id) => document.getElementById(id) as HTMLButtonElement | null);
   const timers: number[] = [0, 0, 0];
 
+  let lastJob: JobId | null = null;
   const setIcons = (jobId: JobId) => {
+    if (jobId === lastJob) return;
+    lastJob = jobId;
     const defs = SKILLS[jobId] ?? [];
     btns.forEach((btn, i) => {
       if (!btn) return;
@@ -70,6 +74,11 @@ export function initSkillButton() {
 
   window.addEventListener('select-job', ((e: CustomEvent<JobId>) => setIcons(e.detail)) as EventListener);
   window.addEventListener('select-job-sync', ((e: CustomEvent<JobId>) => setIcons(e.detail)) as EventListener);
+  // Job permanen: pastikan ikon sinkron begitu Player benar-benar ada
+  // (stats-changed pasti terkirim setelah Player constructed).
+  window.addEventListener('stats-changed', ((e: CustomEvent<{ jobId: JobId }>) => {
+    setIcons(e.detail.jobId);
+  }) as EventListener);
 
   // dipakai habis skill
   window.addEventListener('skill-used', ((e: CustomEvent<{ slot: number; ms: number }>) => {
@@ -83,4 +92,9 @@ export function initSkillButton() {
   }) as EventListener);
 
   setIcons('warrior');
+  paintJobIfReady();
+  function paintJobIfReady() {
+    const meta = loadMeta();
+    if (meta.currentJob) setIcons(meta.currentJob);
+  }
 }

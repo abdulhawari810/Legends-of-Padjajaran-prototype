@@ -1,4 +1,4 @@
-import type { Primary } from './attributes';
+﻿import type { Primary } from './attributes';
 
 export type JobId = 'warrior' | 'mage' | 'archer';
 

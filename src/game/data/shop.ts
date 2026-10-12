@@ -1,4 +1,4 @@
-import { getItem } from './items';
+﻿import { getItem } from './items';
 import { addItem, getCount, removeItem } from './inventory';
 import { addGold, getGold, spendGold } from './currency';
 import { addBuy, addSell } from './stats';
@@ -14,7 +14,12 @@ export interface ShopSell {
   price: number;
 }
 
-export const SHOP_BUY: ShopBuy[] = [{ id: 'potion-s', price: 20 }];
+export const SHOP_BUY: ShopBuy[] = [
+  { id: 'potion-s', price: 20 },
+  { id: 'potion-m', price: 30 },
+  { id: 'roast-meat', price: 35 },
+  { id: 'herbal-tonic', price: 45 }
+];
 
 export const SHOP_SELL: ShopSell[] = [
   { id: 'slime-gel', price: 5 },

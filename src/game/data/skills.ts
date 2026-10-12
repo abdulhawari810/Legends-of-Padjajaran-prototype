@@ -1,4 +1,4 @@
-import type { JobId } from './jobs';
+﻿import type { JobId } from './jobs';
 
 // Batch N: 3 skill aktif per job. Slot 0 = skill lama, slot 1-2 = baru.
 // Tombol: Q/1, 2, 3. MP + cooldown per skill.

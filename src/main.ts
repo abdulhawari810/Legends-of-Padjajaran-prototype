@@ -1,104 +1,47 @@
-import './style.css';
-import { createGame } from './game/Game';
-import { initJoystick } from './ui/joystick';
-import { initAttackButton } from './ui/attack';
-import { initSkillButton } from './ui/skill';
-import { initCharPanel } from './ui/charPanel';
-import { initHud } from './ui/hud';
-import { initGamePanels } from './ui/gamePanels';
-import { initSettings } from './ui/settings';
-import { initMinimap } from './ui/minimap';
-import { initChat } from './ui/chat';
-import { initTargetPanel } from './ui/targetPanel';
-import { initQuickMenu } from './ui/quickmenu';
-import { initLandscape } from './ui/orientation';
+﻿import './style.css';
+import { currentProfile, setProfileJob } from './game/data/auth';
+import { bindAuthScreen, setAuthReadyCallback, showAuthScreen } from './ui/authScreen';
 
-const container = document.getElementById('game-container')!;
-createGame(container);
-initJoystick();
-initAttackButton();
-initSkillButton();
-initCharPanel();
-initHud();
-initGamePanels();
-initSettings();
-initMinimap();
-initChat();
-initTargetPanel();
-initQuickMenu();
-initLandscape();
+// =============================================================================
+// Bootstrap (Batch AG).
+//
+// URUTAN PENTING — jangan diacak:
+//
+//   1. Tentukan profil aktif  -> setActiveProfile(id) di persistence
+//   2. import('./app')         -> modul data baru me-load dengan key profil
+//
+// Semua modul data me-cache state di level modul saat di-import
+// (`let equipped = loadJSON(...)`). Kalau langkah 2 terjadi sebelum langkah 1,
+// state yang ter-cache milik profil yang salah DAN tidak akan pernah di-reload.
+// Karena itu main.ts SENGAJA hanya meng-import modul auth + UI auth (yang bebas
+// circular), lalu memakai dynamic import() untuk seluruh game.
+// =============================================================================
 
-// Pilih job (3 class). Default dari save terakhir, fallback warrior.
-import { loadMeta } from './game/data/save';
-import { clearAllSave } from './game/data/save';
-import { initAudio, isMuted, setMuted, sfxClick } from './game/audio';
+async function boot() {
+  bindAuthScreen();
 
-initAudio();
-
-const muteBtn = document.getElementById('btn-mute');
-const paintMute = () => {
-  if (muteBtn) muteBtn.textContent = isMuted() ? '🔇' : '🔊';
-};
-muteBtn?.addEventListener('click', () => {
-  setMuted(!isMuted());
-  paintMute();
-  if (!isMuted()) sfxClick();
-});
-paintMute();
-
-const buttons = document.querySelectorAll<HTMLButtonElement>('#job-select button');
-
-function setActive(jobId: string) {
-  buttons.forEach((b) => b.classList.toggle('active', b.dataset.job === jobId));
-  window.dispatchEvent(new CustomEvent('select-job', { detail: jobId }));
-  const icons: Record<string, string> = { warrior: '⚔️', mage: '🔮', archer: '🏹' };
-  const avatarIcon = document.getElementById('avatar-icon');
-  if (avatarIcon && icons[jobId]) avatarIcon.textContent = icons[jobId];
-}
-
-buttons.forEach((b) => {
-  b.addEventListener('click', () => {
-    sfxClick();
-    setActive(b.dataset.job!);
-  });
-});
-
-// sinkron tombol saat MapScene restore job dari save (tanpa dispatch ulang)
-window.addEventListener('select-job-sync', ((e: CustomEvent<string>) => {
-  const jobId = e.detail;
-  buttons.forEach((b) => b.classList.toggle('active', b.dataset.job === jobId));
-  const icons: Record<string, string> = { warrior: '⚔️', mage: '🔮', archer: '🏹' };
-  const avatarIcon = document.getElementById('avatar-icon');
-  if (avatarIcon && icons[jobId]) avatarIcon.textContent = icons[jobId];
-}) as EventListener);
-
-let initialJob = 'warrior';
-try {
-  const meta = loadMeta();
-  if (meta.currentJob === 'warrior' || meta.currentJob === 'mage' || meta.currentJob === 'archer') {
-    initialJob = meta.currentJob;
-  }
-} catch {
-  // abaikan save korup
-}
-
-setActive(initialJob);
-
-// Reset save dengan konfirmasi 2x klik
-const resetBtn = document.getElementById('btn-reset-save');
-let resetArmed = false;
-let resetTimer = 0;
-resetBtn?.addEventListener('click', () => {
-  if (!resetArmed) {
-    resetArmed = true;
-    if (resetBtn) resetBtn.textContent = 'Klik lagi untuk hapus!';
-    resetTimer = window.setTimeout(() => {
-      resetArmed = false;
-      if (resetBtn) resetBtn.textContent = 'Reset Save';
-    }, 3000);
+  // Tampilkan layar auth kalau belum ada sesi. Fungsi ini
+  // mengembalikan true kalau boot boleh lanjut.
+  const ready = await showAuthScreen();
+  if (!ready) {
+    setAuthReadyCallback(() => void launch());
     return;
   }
-  window.clearTimeout(resetTimer);
-  clearAllSave();
-  window.location.reload();
-});
+  await launch();
+}
+
+async function launch() {
+  const profile = currentProfile();
+  if (!profile) {
+    // sesi hilang (mis. profil dihapus dari tab lain) -> kembali ke layar auth
+    await showAuthScreen();
+    return;
+  }
+  // Profil tanpa job (mis. screen pilih job gagal render) -> default warrior.
+  if (!profile.job) setProfileJob(profile.id, 'warrior');
+
+  const app = await import('./app');
+  app.startGame(app.resolveJob());
+}
+
+void boot();

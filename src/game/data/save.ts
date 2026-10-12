@@ -1,6 +1,6 @@
-import type { JobId } from './jobs';
+﻿import type { JobId } from './jobs';
 import type { Primary } from './attributes';
-import { loadJSON, saveJSON } from './persistence';
+import { scopedKey, loadJSON, saveJSON } from './persistence';
 
 // Batch C: save per-job + posisi + meta. Inventory/gold/quest/equip global tetap
 // di key masing-masing (sudah persist), di sini hanya tambah yang belum.
@@ -31,22 +31,27 @@ export interface MetaSave {
   killCount: number;
 }
 
-const KEY_JOBS = 'mmorpg-player-jobs-v1';
-const KEY_POS = 'mmorpg-player-pos-v1';
-const KEY_META = 'mmorpg-meta-v1';
+const KEY_JOBS = (): string => scopedKey('mmorpg-player-jobs-v1');
+const KEY_POS = (): string => scopedKey('mmorpg-player-pos-v1');
+const KEY_META = (): string => scopedKey('mmorpg-meta-v1');
 
 // Batch D: 3 slot save manual (snapshot semua key live).
 export const MAX_SLOTS = 3;
-export const SLOT_KEYS = [
-  'mmorpg-slot-1-v1',
-  'mmorpg-slot-2-v1',
-  'mmorpg-slot-3-v1'
-];
 
-const ALL_KEYS = [
-  KEY_JOBS,
-  KEY_POS,
-  KEY_META,
+/** Key dasar slot manual (per profil — ikut di-namespacing). */
+const SLOT_BASES = ['mmorpg-slot-1-v1', 'mmorpg-slot-2-v1', 'mmorpg-slot-3-v1'];
+
+export const slotKeys = (): string[] => SLOT_BASES.map((b) => scopedKey(b));
+
+/**
+ * Key dasar yang terdaftar. Dihitung saat PAKAI (bukan saat modul
+ * di-import) karena namespace profil baru diketahui setelah login — itu sebabnya
+ * modul data harus di-import dinamis SETELAH profil aktif.
+ */
+const KEY_BASES = [
+  'mmorpg-player-jobs-v1',
+  'mmorpg-player-pos-v1',
+  'mmorpg-meta-v1',
   'mmorpg-inventory-v1',
   'mmorpg-gold-v1',
   'mmorpg-quests-v1',
@@ -56,11 +61,20 @@ const ALL_KEYS = [
   'mmorpg-enhance-v1',
   'mmorpg-stats-v1',
   'mmorpg-ach-v1',
-  ...SLOT_KEYS
+  'mmorpg-quickslots-v1',
+  'mmorpg-prof-v1',
+  'mmorpg-skills-v1',
+  'mmorpg-bank-v1',
+  ...SLOT_BASES
 ];
 
+/** Semua key milik profil aktif (already namespaced). */
+export function allKeys(): string[] {
+  return KEY_BASES.map((b) => scopedKey(b));
+}
+
 export function loadJobSaves(): Partial<Record<JobId, JobSave>> {
-  return loadJSON<Partial<Record<JobId, JobSave>>>(KEY_JOBS, {});
+  return loadJSON<Partial<Record<JobId, JobSave>>>(KEY_JOBS(), {});
 }
 
 export function loadJobSave(jobId: JobId): JobSave | null {
@@ -70,11 +84,11 @@ export function loadJobSave(jobId: JobId): JobSave | null {
 export function saveJobSave(jobId: JobId, data: JobSave) {
   const all = loadJobSaves();
   all[jobId] = data;
-  saveJSON(KEY_JOBS, all);
+  saveJSON(KEY_JOBS(), all);
 }
 
 export function loadPos(mapId = 'greenfield'): PosSave | null {
-  const raw = loadJSON<PosStore | PosSave | null>(KEY_POS, null);
+  const raw = loadJSON<PosStore | PosSave | null>(KEY_POS(), null);
   if (!raw) return null;
   // kompatibel save lama: {x,y} langsung = greenfield
   if (typeof (raw as PosSave).x === 'number') {
@@ -84,7 +98,7 @@ export function loadPos(mapId = 'greenfield'): PosSave | null {
 }
 
 export function savePos(x: number, y: number, mapId = 'greenfield') {
-  const raw = loadJSON<PosStore | PosSave | null>(KEY_POS, null);
+  const raw = loadJSON<PosStore | PosSave | null>(KEY_POS(), null);
   let store: PosStore = {};
   if (raw && typeof (raw as PosSave).x !== 'number') {
     store = { ...(raw as PosStore) };
@@ -92,20 +106,20 @@ export function savePos(x: number, y: number, mapId = 'greenfield') {
     store = { greenfield: raw as PosSave };
   }
   store[mapId] = { x: Math.round(x), y: Math.round(y) };
-  saveJSON(KEY_POS, store);
+  saveJSON(KEY_POS(), store);
 }
 
 export function loadMeta(): MetaSave {
-  return loadJSON<MetaSave>(KEY_META, { currentJob: 'warrior', killCount: 0 });
+  return loadJSON<MetaSave>(KEY_META(), { currentJob: 'warrior', killCount: 0 });
 }
 
 export function saveMeta(meta: MetaSave) {
-  saveJSON(KEY_META, meta);
+  saveJSON(KEY_META(), meta);
 }
 
 export function clearAllSave() {
   try {
-    ALL_KEYS.forEach((k) => localStorage.removeItem(k));
+    allKeys().forEach((k) => localStorage.removeItem(k));
   } catch {
     // abaikan
   }
@@ -115,7 +129,7 @@ export function clearAllSave() {
 export function exportSave(): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   try {
-    ALL_KEYS.forEach((k) => {
+    allKeys().forEach((k) => {
       const raw = localStorage.getItem(k);
       data[k] = raw ? (JSON.parse(raw) as unknown) : null;
     });
@@ -130,10 +144,10 @@ export function importSave(obj: unknown): { ok: boolean; reason?: string } {
   const data = (obj as { data?: unknown }).data;
   if (!data || typeof data !== 'object') return { ok: false, reason: 'Tidak ada data save' };
   const rec = data as Record<string, unknown>;
-  const known = rec[KEY_JOBS] ?? rec[KEY_META] ?? rec['mmorpg-gold-v1'];
+  const known = rec[KEY_JOBS()] ?? rec[KEY_META()] ?? rec['mmorpg-gold-v1'];
   if (known === undefined) return { ok: false, reason: 'Bukan file save game ini' };
   try {
-    ALL_KEYS.forEach((k) => {
+    allKeys().forEach((k) => {
       if (rec[k] === undefined || rec[k] === null) return;
       localStorage.setItem(k, JSON.stringify(rec[k]));
     });
@@ -161,10 +175,10 @@ interface SlotPayload {
 }
 
 // Key live yang di-snapshot ke slot (tanpa slot lain agar tidak bersarang).
-const LIVE_KEYS = ALL_KEYS.filter((k) => !SLOT_KEYS.includes(k));
+const LIVE_KEYS = allKeys().filter((k) => !slotKeys().includes(k));
 
 export function slotInfo(i: number): SlotInfo {
-  const raw = loadJSON<SlotPayload | null>(SLOT_KEYS[i - 1] ?? '', null);
+  const raw = loadJSON<SlotPayload | null>(slotKeys()[i - 1] ?? '', null);
   if (!raw || raw.v !== 1 || !raw.info) {
     return { empty: true, savedAt: 0, job: 'warrior', level: 1, kill: 0, gold: 0 };
   }
@@ -193,7 +207,7 @@ export function saveSlot(i: number): { ok: boolean; reason?: string } {
       },
       keys
     };
-    saveJSON(SLOT_KEYS[i - 1], payload);
+    saveJSON(slotKeys()[i - 1], payload);
     return { ok: true };
   } catch {
     return { ok: false, reason: 'Gagal tulis (memori penuh?)' };
@@ -201,7 +215,7 @@ export function saveSlot(i: number): { ok: boolean; reason?: string } {
 }
 
 export function loadSlot(i: number): { ok: boolean; reason?: string } {
-  const raw = loadJSON<SlotPayload | null>(SLOT_KEYS[i - 1] ?? '', null);
+  const raw = loadJSON<SlotPayload | null>(slotKeys()[i - 1] ?? '', null);
   if (!raw || raw.v !== 1 || !raw.keys) return { ok: false, reason: 'Slot kosong' };
   try {
     Object.entries(raw.keys).forEach(([k, v]) => {
@@ -216,7 +230,7 @@ export function loadSlot(i: number): { ok: boolean; reason?: string } {
 
 export function deleteSlot(i: number) {
   try {
-    localStorage.removeItem(SLOT_KEYS[i - 1] ?? '');
+    localStorage.removeItem(slotKeys()[i - 1] ?? '');
   } catch {
     // abaikan
   }

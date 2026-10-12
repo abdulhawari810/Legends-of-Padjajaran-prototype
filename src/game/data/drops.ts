@@ -1,4 +1,4 @@
-// Drop table murni (testable): monsterId -> gold + item chance.
+﻿// Drop table murni (testable): monsterId -> gold + item chance.
 // Tuning Batch B: gold cukup untuk 1 potion (~20G) tiap 3-4 kill.
 export interface DropRoll {
   gold: number;

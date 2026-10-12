@@ -1,4 +1,4 @@
-# Legends of Padjajaran — MMORPG Web 2D (Singleplayer)
+﻿# Legends of Padjajaran — MMORPG Web 2D (Singleplayer)
 
 > Lihat `LICENSE`: kode boleh dipakai dengan atribusi, **nama + logo/ikon
 > game ini dilarang dipakai** (fork wajib rebrand).
@@ -43,26 +43,32 @@ Mati = respawn di heal zone dengan penalti 5% gold.
 
 ## Fitur
 
-- **3 job** (Warrior/Mage/Archer), save terpisah per job, ganti tanpa reset
+- **Akun lokal**: layar Masuk/Daftar + pilih class saat karakter baru.
+  Progres tiap profil terpisah (namespaced per akun). class **permanen**
+- **3 class** (Warrior/Mage/Archer) — dipilih sekali saat buat karakter
 - **3 map** via portal: Greenfield → Dark Forest → Crystal Cave (+heal zone)
 - **8 monster + 2 boss** (Elite & Troll berpola AoE telegraph + summon),
   AI aggro/provoke/leash-evade (immune + heal saat pulang)
-- **11 quest chain + 3 bounty harian + 13 achievement** + statistik
+- **12 quest chain + 3 bounty harian + 13 achievement** + statistik
 - **Kota NPC**: Tetua (quest/tempa), Pedagang (trade), Bankir (vault+stash),
   3 Pelatih (skill Lv1-3)
 - **Atribut manual** (+5 poin/level), **profesi** mining & herbalism
 - **Shop** (beli potion/jual drop), **tempa +1..+5**, atribut New World ×
   combat WoW (crit/dodge/block/haste/lifesteal)
 - **9 skill** (3/job, MP + cooldown per-slot), auto-target + syarat hadap
+- **3 quick-slot** (HP / MP / food buff) — pasang item dari panel Equipment.
+  Buff makanan (atk/armor sementara) tampil dengan durasi di bawah HUD
 - **Juice**: partikel, screen-shake, damage number, EVADE, Y-sort depth
-- **UI RPG**: HUD emas, minimap, panel modal tengah, tombol sentuh (sembunyi
-  di desktop), pengaturan volume/kualitas, backup export/import
+- **UI RPG**: HUD emas, panel Equipment 2 kolom (filter + rarity border),
+  panel Karakter (artwork + tab Status/Ability/Quest/Skill), list quest
+  bergaya kartu responsif, minimap, tombol sentuh (sembunyi di desktop),
+  pengaturan volume/kualitas, backup export/import
 
 ## Mulai cepat
 
 ```bash
 npm.cmd run dev      # web http://localhost:5173 (Windows pakai npm.cmd!)
-npm.cmd run test     # 19 unit test
+npm.cmd run test     # 158 unit test
 npm.cmd run build    # tsc + vite → dist/
 npm.cmd run build:apk  # cap:sync + Gradle → APK debug
 npm.cmd run mv:apk     # salin APK ke Downloads
@@ -73,19 +79,21 @@ Detail instalasi + masalah umum: [`docs/INSTALL.md`](docs/INSTALL.md).
 ## Struktur
 
 ```
-src/main.ts            bootstrap UI + job-select + mute
-src/style.css          seluruh UI (responsif + tema RPG)
+src/main.ts            BOOTSTRAP SAJA: auth -> dynamic import('./app')
+src/app.ts             init seluruh game (dimuat setelah profil aktif)
+src/style.css          seluruh UI (responsif + tema RPG emas)
 src/game/Game.ts       config Phaser (RESIZE fullscreen-lebar)
 src/game/audio.ts      SFX WebAudio
 src/game/data/         jobs/monsters/items/quests/drops/shop/equipment/
                        enhance/skills/attributes/currency/inventory/
                        questState/bounty/stats/achievements/settings/
-                       save/persistence/map
-src/game/entities/     Player/Monster/Npc
+                       quickslots/auth/sha256/attrRules/save/persistence/map/sprites
+src/game/entities/     Player/Monster/Npc/GatherNode
 src/game/scenes/       BootScene (tekstur) + MapScene (semua gameplay)
 src/game/input/        VirtualInput
 src/ui/                joystick/attack/skill/hud/gamePanels/charPanel/
-                       settings/minimap/orientation
+                       quickslots/buffBar/questList/authScreen/settings/minimap/
+                       chat/targetPanel/quickmenu/orientation
 scripts/               build-apk/copy-apk/make-icons (lintas CMD/Bash)
 android/               wrapper Capacitor | src-tauri/ config Tauri
 docs/                  INSTALL + AGENTS + SKILL (untuk AI/developer)

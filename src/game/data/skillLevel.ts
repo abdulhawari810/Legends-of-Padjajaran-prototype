@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 import { getGold, spendGold } from './currency';
 import type { JobId } from './jobs';
 
@@ -7,7 +7,7 @@ export const SKILL_MAX_LEVEL = 3;
 
 type Levels = [number, number, number];
 
-const KEY = 'mmorpg-skills-v1';
+const KEY = (): string => scopedKey('mmorpg-skills-v1');
 
 function blank(): Levels {
   return [1, 1, 1];
@@ -15,7 +15,7 @@ function blank(): Levels {
 
 function load(): Partial<Record<JobId, Levels>> {
   try {
-    const s = loadJSON<Partial<Record<JobId, Levels>>>(KEY, {});
+    const s = loadJSON<Partial<Record<JobId, Levels>>>(KEY(), {});
     (['warrior', 'mage', 'archer'] as JobId[]).forEach((j) => {
       const v = s[j];
       if (!Array.isArray(v)) s[j] = blank();
@@ -35,7 +35,7 @@ function clamp(n: unknown): number {
 let levels: Partial<Record<JobId, Levels>> = load();
 
 function persist() {
-  saveJSON(KEY, levels);
+  saveJSON(KEY(), levels);
   window.dispatchEvent(new CustomEvent('skills-changed'));
 }
 

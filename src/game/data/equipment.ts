@@ -1,8 +1,8 @@
-import { getItem } from './items';
+﻿import { getItem } from './items';
 import type { JobId } from './jobs';
 import type { Derived, Primary } from './attributes';
 import { calcDerived } from './attributes';
-import { loadJSON, saveJSON } from './persistence';
+import { scopedKey, loadJSON, saveJSON } from './persistence';
 import { ENHANCE_ARMOR_PER_LEVEL, ENHANCE_ATK_PER_LEVEL, getEnhance } from './enhance';
 
 export interface GearBonus {
@@ -25,11 +25,11 @@ export const EMPTY_GEAR: GearBonus = {
   critRate: 0
 };
 
-const KEY_W = 'mmorpg-equip-weapon-v1';
-const KEY_A = 'mmorpg-equip-armor-v1';
+const KEY_W = (): string => scopedKey('mmorpg-equip-weapon-v1');
+const KEY_A = (): string => scopedKey('mmorpg-equip-armor-v1');
 
-let equippedWeaponId: string | null = loadJSON<string | null>(KEY_W, 'sword-wood');
-let equippedArmorId: string | null = loadJSON<string | null>(KEY_A, null);
+let equippedWeaponId: string | null = loadJSON<string | null>(KEY_W(), 'sword-wood');
+let equippedArmorId: string | null = loadJSON<string | null>(KEY_A(), null);
 
 export function getEquippedWeaponId(): string | null {
   return equippedWeaponId;
@@ -60,10 +60,10 @@ export function equipItem(itemId: string, jobId: JobId, level: number): { ok: bo
   if (!check.ok) return check;
   if (def.slot === 'weapon') {
     equippedWeaponId = itemId;
-    saveJSON(KEY_W, equippedWeaponId);
+    saveJSON(KEY_W(), equippedWeaponId);
   } else {
     equippedArmorId = itemId;
-    saveJSON(KEY_A, equippedArmorId);
+    saveJSON(KEY_A(), equippedArmorId);
   }
   emit();
   return { ok: true };
@@ -77,10 +77,10 @@ export function equipWeapon(itemId: string, jobId: JobId, level: number) {
 export function unequipSlot(slot: 'weapon' | 'armor') {
   if (slot === 'weapon') {
     equippedWeaponId = null;
-    saveJSON(KEY_W, null);
+    saveJSON(KEY_W(), null);
   } else {
     equippedArmorId = null;
-    saveJSON(KEY_A, null);
+    saveJSON(KEY_A(), null);
   }
   emit();
 }

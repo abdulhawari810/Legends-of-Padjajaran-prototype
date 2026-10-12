@@ -1,4 +1,4 @@
-// Batch A FINAL tuning (TTK target Lv1 + starter weapon):
+﻿// Batch A FINAL tuning (TTK target Lv1 + starter weapon):
 //  Warrior P43 / Mage M51 / Archer R44 (dengan senjata).
 //  Slime 70HP  -> 2 hit semua job (43*2, 51+ variance, 44*2). Tutorial aman.
 //  Goblin 110HP -> 3 hit (43*3=129, 51*3, 44*3). TTK 1.2-1.8s.

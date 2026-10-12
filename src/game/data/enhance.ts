@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 import { getCount, removeItem } from './inventory';
 import { addGold, getGold, spendGold } from './currency';
 
@@ -9,7 +9,7 @@ export const ENHANCE_MAX = 5;
 export const ENHANCE_ATK_PER_LEVEL = 2;
 export const ENHANCE_ARMOR_PER_LEVEL = 1;
 
-const KEY = 'mmorpg-enhance-v1';
+const KEY = (): string => scopedKey('mmorpg-enhance-v1');
 
 interface Save {
   weapon: number;
@@ -17,7 +17,7 @@ interface Save {
 }
 
 function load(): Save {
-  const s = loadJSON<Partial<Save>>(KEY, {});
+  const s = loadJSON<Partial<Save>>(KEY(), {});
   return {
     weapon: Math.min(ENHANCE_MAX, Math.max(0, s.weapon ?? 0)),
     armor: Math.min(ENHANCE_MAX, Math.max(0, s.armor ?? 0))
@@ -27,7 +27,7 @@ function load(): Save {
 let levels: Save = load();
 
 function persist() {
-  saveJSON(KEY, levels);
+  saveJSON(KEY(), levels);
 }
 
 export function getEnhance(slot: EnhanceSlot): number {

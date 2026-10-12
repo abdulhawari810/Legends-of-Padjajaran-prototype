@@ -1,4 +1,4 @@
-// Sistem atribut flat: 5 primary ala New World + derived combat ala WoW.
+﻿// Sistem atribut flat: 5 primary ala New World + derived combat ala WoW.
 // File ini MURNI (tanpa Phaser) agar gampang di-unit-test.
 
 export interface Primary {

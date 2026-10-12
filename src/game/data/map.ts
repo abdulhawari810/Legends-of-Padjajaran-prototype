@@ -1,4 +1,4 @@
-// Definisi map: Greenfield 52x38 + Dark Forest 52x40 + Gua 44x34 (@32px).
+﻿// Definisi map: Greenfield 52x38 + Dark Forest 52x40 + Gua 44x34 (@32px).
 export type MapId = 'greenfield' | 'dark' | 'cave';
 export type MapTheme = 'green' | 'dark' | 'cave';
 

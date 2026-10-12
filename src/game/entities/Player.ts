@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+﻿import Phaser from 'phaser';
 import { JOBS, type JobId } from '../data/jobs';
 import { VirtualInput } from '../input/VirtualInput';
 import {
@@ -19,6 +19,14 @@ import {
   starterWeaponFor
 } from '../data/equipment';
 import { loadJobSave, saveJobSave, saveMeta, loadMeta } from '../data/save';
+import { getItem } from '../data/items';
+import {
+  canDecrement,
+  canIncrement,
+  hasStagedChange,
+  stagedUsed
+} from '../data/attrRules';
+import { getQuickItem } from '../data/quickslots';
 import { SKILLS } from '../data/skills';
 import { skillCd } from '../data/skillLevel';
 import { sfxPotion } from '../audio';
@@ -44,10 +52,14 @@ export interface StatsSnapshot {
   freePoints: number;
   spent: Primary;
   pending: Primary;
+  /** Buff makanan aktif (untuk UI bar buff + panel Equipment). */
+  activeBuffs?: Array<{ id: string; icon: string; name: string; value: number; left: number }>;
 }
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   jobId: JobId = 'warrior';
+  /** Job permanen: setelah setJob pertama di konstruktor, kunci class. */
+  jobLocked = false;
   facing: Facing = 'down';
   speed = 170;
 
@@ -83,6 +95,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** Batch N: buff habis waktu (ms scene.time). */
   shieldUntil = 0;
   swiftUntil = 0;
+  /** Buff makanan: flat atk/armor + sisa waktu (ms scene.time). */
+  buffAtk = 0;
+  buffAtkUntil = 0;
+  buffDef = 0;
+  buffDefUntil = 0;
   private regenAccum = 0;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -113,6 +130,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       // abaikan save korup
     }
     this.setJob(initialJob);
+    // kunci class: karakter ini tidak bisa ganti job selamanya
+    this.jobLocked = true;
 
     this.nameText = worldText(scene, x, y - 60, '', {
       fontSize: '11px',
@@ -123,17 +142,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }).setOrigin(0.5);
 
     window.addEventListener('select-job', this.onSelectJob);
-    window.addEventListener('use-potion', this.onUsePotion);
+    window.addEventListener('use-quick', this.onUseQuick);
     window.addEventListener('equipment-changed', this.onEquipmentChanged);
     window.addEventListener('allocate-attr', this.onAllocateAttr);
   }
 
   private onSelectJob = ((e: CustomEvent<JobId>) => {
+    // Job PERMANEN: setelah karakter dibangun, job tidak bisa diganti lagi.
+    //.src/main.ts mengirim select-job 1x saat init (untuk icon skill/UI),
+    // semua percobaan berikutnya diabaikan.
+    if (this.jobLocked) return;
     this.setJob(e.detail);
   }) as EventListener;
 
-  private onUsePotion = (() => {
-    this.tryUsePotion();
+  private onUseQuick = ((e: CustomEvent<number>) => {
+    const idx = (e.detail ?? 0) as 0 | 1 | 2;
+    this.useQuickItem(getQuickItem(idx));
   }) as EventListener;
 
   private onEquipmentChanged = (() => {
@@ -152,7 +176,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene?: boolean): void {
     // scene di-restart tiap pindah portal: lepas listener agar tidak ganda
     window.removeEventListener('select-job', this.onSelectJob);
-    window.removeEventListener('use-potion', this.onUsePotion);
+    window.removeEventListener('use-quick', this.onUseQuick);
     window.removeEventListener('equipment-changed', this.onEquipmentChanged);
     window.removeEventListener('allocate-attr', this.onAllocateAttr);
     try {
@@ -163,19 +187,57 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     super.destroy(fromScene);
   }
 
-  tryUsePotion(): boolean {
-    const now = this.scene.time.now;
+  /**
+   * Pakai item dari quick-slot. `itemId` null = slot kosong.
+   * Mengembalikan false bila tidak bisa dipakai (HP/MP penuh, buff masih aktif,
+   * mati, cooldown global potion belum habis).
+   */
+  useQuickItem(itemId: string | null): boolean {
     if (this.dead) return false;
-    if (now - this.lastPotionAt < this.potionCooldownMs) return false;
-    if (this.hp >= this.derived.maxHp) return false;
-    this.lastPotionAt = now;
-    // Batch T: potion 40% max HP (min 50) agar relevan di level tinggi
-    const heal = Math.max(50, Math.round(this.derived.maxHp * 0.4));
-    this.hp = Math.min(this.derived.maxHp, this.hp + heal);
+    const def = itemId ? getItem(itemId) : undefined;
+    if (!def || def.type !== 'consumable') return false;
+
+    const now = this.scene.time.now;
+    const isPotion = def.quick === 'hp' || def.quick === 'mp';
+
+    // ---- SEMUA validasi dulu, baru ada mutasi ----
+    // Kalau validasi AFTER mutasi, item dengan 2 efek bisa mengubah HP tapi
+    // lalu return false (item hilang tanpa efek) atau sebaliknya.
+    if (!def.heal && !def.mana && !def.buffAtk && !def.buffDef) return false;
+    // cooldown global hanya untuk potion (HP/MP), bukan makanan
+    if (isPotion && now - this.lastPotionAt < this.potionCooldownMs) return false;
+    if (def.heal && this.hp >= this.derived.maxHp) return false;
+    if (def.mana && this.mp >= this.derived.maxMp) return false;
+    // buff serupa masih aktif -> jangan ditumpuk
+    if (def.buffAtk && this.buffAtkUntil > now) return false;
+    if (def.buffDef && this.buffDefUntil > now) return false;
+
+    // ---- terapkan ----
+    if (def.heal) {
+      // Batch T: potion 40% max HP (min 50) agar relevan di level tinggi
+      const heal = Math.max(50, Math.round(this.derived.maxHp * 0.4));
+      this.hp = Math.min(this.derived.maxHp, this.hp + heal);
+    }
+    if (def.mana) {
+      const mana = Math.max(40, Math.round(this.derived.maxMp * 0.4));
+      this.mp = Math.min(this.derived.maxMp, this.mp + mana);
+    }
+    if (def.buffAtk) {
+      this.buffAtk = def.buffAtk;
+      this.buffAtkUntil = now + (def.durMs ?? 30000);
+    }
+    if (def.buffDef) {
+      this.buffDef = def.buffDef;
+      this.buffDefUntil = now + (def.durMs ?? 30000);
+    }
+    if (def.buffAtk || def.buffDef) this.recalc(false);
+    if (isPotion) this.lastPotionAt = now;
+
     this.emitStats();
     sfxPotion();
-    window.dispatchEvent(new CustomEvent('potion-consumed'));
-    window.dispatchEvent(new CustomEvent('potion-used', { detail: this.potionCooldownMs }));
+    window.dispatchEvent(new CustomEvent('quick-item-used', { detail: { id: def.id, kind: def.quick ?? 'hp' } }));
+    if (isPotion) window.dispatchEvent(new CustomEvent('potion-used', { detail: this.potionCooldownMs }));
+    if (def.buffAtk || def.buffDef) window.dispatchEvent(new CustomEvent('buff-used', { detail: def.id }));
     return true;
   }
 
@@ -249,6 +311,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   setJob(jobId: JobId) {
+    // Job permanen: hanya boleh dipanggil sekali (konstruktor) atau oleh
+    // MapScene saat restore dari save dengan nilai yang sama.
+    if (this.jobLocked && jobId !== this.jobId) return;
     const prev = this.jobId as JobId | undefined;
     // simpan job lama sebelum pindah (kecuali init pertama belum ada derived)
     if (prev && prev !== jobId && this.derived) {
@@ -354,16 +419,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  /** Batch V: stage +1/-1 (preview, belum simpan). */
+  /**
+   * Stage +1/-1 (preview, belum simpan).
+   *
+   * Aturan: -1 HANYA boleh membatalkan poin yang sedang di-stage pada sesi ini
+   * (`pending[stat] > 0`). Poin yang sudah di-commit lewat "Terapkan" bersifat
+   * PERMANEN — satu-satunya cara mundur adalah `resetAllAttributes()` (20G).
+   * Kalau ini tidak dijaga, `spent` yang sudah jadi bisa dikurangi dari UI
+   * sehingga "Terapkan" kehilangan artinya.
+   */
   stageAttr(stat: keyof Primary, delta: 1 | -1): boolean {
     if (this.dead) return false;
     if (!(stat in this.primary)) return false;
     if (delta > 0) {
-      const used = (Object.keys(this.pending) as Array<keyof Primary>).reduce((a, k) => a + this.pending[k], 0);
-      if (this.freePoints - used <= 0) return false;
+      if (!canIncrement(this.freePoints, this.pending)) return false;
       this.pending[stat] += 1;
     } else {
-      if (this.spent[stat] + this.pending[stat] <= 0) return false;
+      // hanya staging sesi ini yang bisa dibatalkan (poin committed = permanen)
+      if (!canDecrement(this.pending, stat)) return false;
       this.pending[stat] -= 1;
     }
     this.emitStats();
@@ -372,7 +445,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   /** Net staging (0 = tidak ada perubahan). */
   stagedNet(): number {
-    return (Object.keys(this.pending) as Array<keyof Primary>).reduce((a, k) => a + this.pending[k], 0);
+    return stagedUsed(this.pending);
   }
 
   /** Apply: simpan semua staging. */
@@ -393,7 +466,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private hasStagedChange(): boolean {
-    return (Object.keys(this.pending) as Array<keyof Primary>).some((k) => this.pending[k] !== 0);
+    return hasStagedChange(this.pending);
   }
 
   /** Batalkan staging (tanpa biaya). */
@@ -426,10 +499,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private recalc(fullRestore = false) {
     const job = JOBS.find((j) => j.id === this.jobId)!;
-    this.derived = calcDerivedWithGear(
+    const d = calcDerivedWithGear(
       this.primary,
       gearBonusFor(getEquippedWeaponId(), getEquippedArmorId())
     );
+    // buff makanan (flat, sementara) ditumpuk di atas derived.
+    // TIDAK disimpan ke save: hilang saat reload / pindah map.
+    if (this.buffAtkUntil > 0) {
+      // berlaku ke semua jenis atk supaya makanan tetap berguna untuk 3 job
+      d.pAtk += this.buffAtk;
+      d.rAtk += this.buffAtk;
+      d.mAtk += this.buffAtk;
+    }
+    if (this.buffDefUntil > 0) {
+      d.armor += this.buffDef;
+      d.magicRes += this.buffDef;
+    }
+    this.derived = d;
     this.speed = Math.round(job.moveSpeed * (1 + this.derived.moveSpeedBonus));
     if (fullRestore) {
       this.hp = this.derived.maxHp;
@@ -481,8 +567,36 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       equippedArmorId: getEquippedArmorId(),
       freePoints: this.freePoints,
       spent: { ...this.spent },
-      pending: { ...this.pending }
+      pending: { ...this.pending },
+      activeBuffs: this.activeBuffList()
     };
+  }
+
+  /** Daftar buff makanan aktif + sisa detiknya (untuk UI). */
+  activeBuffList(): Array<{ id: string; icon: string; name: string; value: number; left: number }> {
+    const now = this.scene.time.now;
+    const out: Array<{ id: string; icon: string; name: string; value: number; left: number }> = [];
+    if (this.buffAtk > 0 && this.buffAtkUntil > now) {
+      const def = getItem('roast-meat');
+      out.push({
+        id: 'roast-meat',
+        icon: def?.icon ?? '🍖',
+        name: def?.name ?? 'Roast Meat',
+        value: this.buffAtk,
+        left: Math.ceil((this.buffAtkUntil - now) / 1000)
+      });
+    }
+    if (this.buffDef > 0 && this.buffDefUntil > now) {
+      const def = getItem('herbal-tonic');
+      out.push({
+        id: 'herbal-tonic',
+        icon: def?.icon ?? '🍵',
+        name: def?.name ?? 'Herbal Tonic',
+        value: this.buffDef,
+        left: Math.ceil((this.buffDefUntil - now) / 1000)
+      });
+    }
+    return out;
   }
 
   private emitStats() {
@@ -547,6 +661,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.regenAccum = 0;
       this.hp = Math.min(this.derived.maxHp, this.hp + this.derived.hpRegen);
       this.mp = Math.min(this.derived.maxMp, this.mp + this.derived.mpRegen);
+      this.emitStats();
+    }
+
+    // buff makanan kedaluwarsa -> recalc derived (flat atk/armor dilepas)
+    const nowMs = this.scene.time.now;
+    const buffExpired =
+      (this.buffAtk > 0 && this.buffAtkUntil <= nowMs) ||
+      (this.buffDef > 0 && this.buffDefUntil <= nowMs);
+    if (buffExpired) {
+      this.buffAtk = 0;
+      this.buffAtkUntil = 0;
+      this.buffDef = 0;
+      this.buffDefUntil = 0;
+      this.recalc(false);
       this.emitStats();
     }
 

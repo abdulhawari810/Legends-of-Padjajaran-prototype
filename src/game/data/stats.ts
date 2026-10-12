@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 
 // Batch M: statistik global (semua job). Batch S: +map dikunjungi & skill dipakai.
 export interface GameStats {
@@ -15,13 +15,13 @@ export interface GameStats {
   gathered: Record<string, number>;
 }
 
-const KEY = 'mmorpg-stats-v1';
+const KEY = (): string => scopedKey('mmorpg-stats-v1');
 
 const FALLBACK: GameStats = { kills: {}, deaths: 0, claims: 0, maxLevel: 1, playtimeSec: 0, visited: [], skillUses: 0, buys: 0, sells: 0, deposited: 0, gathered: {} };
 
 export function getStats(): GameStats {
   try {
-    const s = loadJSON<Partial<GameStats>>(KEY, {});
+    const s = loadJSON<Partial<GameStats>>(KEY(), {});
     return {
       kills: s.kills ?? {},
       deaths: s.deaths ?? 0,
@@ -41,7 +41,7 @@ export function getStats(): GameStats {
 }
 
 function persist(s: GameStats) {
-  saveJSON(KEY, s);
+  saveJSON(KEY(), s);
   window.dispatchEvent(new CustomEvent('game-stats-changed'));
 }
 

@@ -250,6 +250,11 @@ export class MapScene extends Phaser.Scene {
     // terdorong menembus dinding. Player ditahan (tanpa push) di
     // blockPlayerByMonsters().
 
+    // Node gather (mining/herbalism) = obstacle statis, player tidak boleh
+    // tembus. WAJIB di-bind DI SINI: mapDef.gather di-spawn di atas (sebelum
+    // Player ada), jadi spawnNode() belum bisa memasang collider apa pun.
+    this.nodes.forEach((n) => this.bindNode(n));
+
     // NPC kota (per-jenis, dari def map)
     this.mapDef.npcs.forEach((nd) => {
       const npc = new Npc(this, nd);
@@ -691,9 +696,24 @@ export class MapScene extends Phaser.Scene {
   private spawnNode(kind: NodeKind, x: number, y: number) {
     const node = new GatherNode(this, x, y, kind);
     this.nodes.push(node);
-    if (this.player) {
-      this.physics.add.collider(this.player, node);
-    }
+    this.bindNode(node);
+  }
+
+  /**
+   * Node gather = penghalang statis (player tidak boleh tembus).
+   *
+   * PENTING: node di-spawn LEBIH DAHULU dari `new Player()` di `create()`,
+   * jadi `this.player` masih undefined saat `spawnNode()` pertama kali jalan.
+   * Kalau collider dipasang di situ saja, node awal sama sekali tidak
+   * memblokir dan player bisa lewat. Karena itu semua node awal di-bind ulang
+   * setelah Player selesai dibuat.
+   *
+   * Body-nya static (lihat `GatherNode`), jadi tidak ada risiko saling dorong
+   * seperti kasus player<->monster (lihat `blockPlayerByMonsters`).
+   */
+  private bindNode(node: GatherNode) {
+    if (!this.player || !node.body || !node.active) return;
+    this.physics.add.collider(this.player, node);
   }
 
   private nearestNode(): GatherNode | null {
@@ -798,7 +818,11 @@ export class MapScene extends Phaser.Scene {
       this.tweens.add({ targets: lv, y: this.player.y - 70, alpha: 0, duration: 1200, onComplete: () => lv.destroy() });
     }
     // hapus + respawn 30 dtk
-    this.nodes = this.nodes.filter((o) => o !== node);
+    // splice (bukan filter) supaya referensi array tetap stabil.
+    // `node.destroy()` otomatis melepas body dari physics world, jadi collider
+    // player<->node ikut mati tanpa perlu di-unregister manual.
+    const ni = this.nodes.indexOf(node);
+    if (ni >= 0) this.nodes.splice(ni, 1);
     node.destroy();
     this.time.delayedCall(30000, () => this.spawnNode(kind, nx, ny));
   }

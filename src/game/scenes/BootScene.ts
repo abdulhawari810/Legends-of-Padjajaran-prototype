@@ -145,28 +145,52 @@ export class BootScene extends Phaser.Scene {
       g.generateTexture('monster-troll', 48, 48);
       g.destroy();
     }
-    // Batch Y: node gather
+    // Batch Y: node gather.
+    // PENTING: node harus terbaca sebagai objek PANEN di tanah, BUKAN kanopi
+    // pohon. Pohon digambar sebagai lingkaran besar di y-12 (tinggi), jadi
+    // node digambar LOW PROFILE di bawah (y>=14) supaya tidak tertukar dan
+    // player bisa jelas mana yang bisa di-block.
     if (!this.textures.exists('node-ore')) {
       const g = this.add.graphics();
+      // tumpukan batu (mining), lebar dan rendah
       g.fillStyle(0x57534e, 1);
-      g.fillRoundedRect(2, 10, 28, 20, 6);
+      g.fillEllipse(16, 27, 28, 12);
+      g.fillStyle(0x78716c, 1);
+      g.fillEllipse(10, 22, 14, 11);
+      g.fillEllipse(21, 21, 13, 10);
+      // highlight batu
       g.fillStyle(0x9ca3af, 1);
-      g.fillRect(8, 4, 6, 8);
-      g.fillRect(18, 6, 6, 6);
+      g.fillEllipse(8, 19, 7, 4);
+      g.fillEllipse(23, 18, 6, 4);
+      // vein emas = tanda "+1 Iron Ore"
       g.fillStyle(0xfbbf24, 1);
-      g.fillRect(13, 16, 6, 6);
+      g.fillEllipse(15, 24, 5, 4);
+      g.fillStyle(0xfde68a, 1);
+      g.fillEllipse(14, 23, 2, 2);
+      g.fillEllipse(20, 26, 3, 2);
       g.generateTexture('node-ore', 32, 32);
       g.destroy();
     }
     if (!this.textures.exists('node-herb')) {
       const g = this.add.graphics();
+      // batang pendek, condiment level tanah
       g.fillStyle(0x166534, 1);
-      g.fillRect(14, 12, 4, 18);
+      g.fillRect(15, 20, 2, 9);
+      // daun melebar horizontal di bawah (BUKAN kanopi bulat di atas)
       g.fillStyle(0x22c55e, 1);
-      g.fillEllipse(16, 10, 20, 14);
+      g.fillEllipse(9, 26, 13, 6);
+      g.fillEllipse(23, 26, 13, 6);
+      g.fillEllipse(16, 29, 11, 6);
+      // daun muda
       g.fillStyle(0x4ade80, 1);
-      g.fillCircle(12, 8, 4);
-      g.fillCircle(20, 7, 3);
+      g.fillEllipse(7, 24, 7, 4);
+      g.fillEllipse(25, 24, 7, 4);
+      // bunga kecil = tanda "+1 Wild Herb"
+      g.fillStyle(0xf9a8d4, 1);
+      g.fillCircle(11, 23, 2);
+      g.fillCircle(21, 22, 2);
+      g.fillStyle(0xfde68a, 1);
+      g.fillCircle(16, 21, 2);
       g.generateTexture('node-herb', 32, 32);
       g.destroy();
     }

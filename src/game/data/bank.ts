@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 import { addGold, getGold, spendGold } from './currency';
 import { addItem, getCount, removeItem } from './inventory';
 
@@ -8,11 +8,11 @@ export interface BankSave {
   items: Record<string, number>;
 }
 
-const KEY = 'mmorpg-bank-v1';
+const KEY = (): string => scopedKey('mmorpg-bank-v1');
 
 function load(): BankSave {
   try {
-    const s = loadJSON<Partial<BankSave>>(KEY, {});
+    const s = loadJSON<Partial<BankSave>>(KEY(), {});
     return { gold: Math.max(0, s.gold ?? 0), items: { ...(s.items ?? {}) } };
   } catch {
     return { gold: 0, items: {} };
@@ -22,7 +22,7 @@ function load(): BankSave {
 let bank: BankSave = load();
 
 function persist() {
-  saveJSON(KEY, bank);
+  saveJSON(KEY(), bank);
   window.dispatchEvent(new CustomEvent('bank-changed'));
 }
 

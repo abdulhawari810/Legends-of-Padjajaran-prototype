@@ -1,10 +1,13 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 
 export type ItemId = string;
 
-const KEY = 'mmorpg-inventory-v1';
+const KEY = (): string => scopedKey('mmorpg-inventory-v1');
 const DEFAULTS: Record<string, number> = {
   'potion-s': 3,
+  'potion-m': 2,
+  'roast-meat': 1,
+  'herbal-tonic': 0,
   'slime-gel': 0,
   'sword-wood': 1,
   'staff-apprentice': 1,
@@ -16,11 +19,11 @@ const DEFAULTS: Record<string, number> = {
   'armor-bone': 0
 };
 
-const stored = loadJSON<Record<string, number>>(KEY, DEFAULTS);
+const stored = loadJSON<Record<string, number>>(KEY(), DEFAULTS);
 const counts = new Map<ItemId, number>(Object.entries({ ...DEFAULTS, ...stored }));
 
 function persist() {
-  saveJSON(KEY, Object.fromEntries(counts.entries()));
+  saveJSON(KEY(), Object.fromEntries(counts.entries()));
 }
 
 export function getCount(id: ItemId): number {

@@ -11,7 +11,13 @@ export class GatherNode extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, kind === 'ore' ? 'node-ore' : 'node-herb');
     this.kind = kind;
     scene.add.existing(this);
+    // static body: node tidak akan terdorong oleh player (aman dari masalah
+    // saling-dorong yang sama seperti player<->monster).
     scene.physics.add.existing(this, true);
+    // body 26x26 di kaki sprite (seperti pohon blocking) supaya player tertahan
+    // oleh "batu/herbanya", bukan oleh kotak kosong di atas sprite.
+    this.setSize(26, 26);
+    this.setOffset(3, 6);
     this.setDepth(10 + (y * 0.01));
   }
 }

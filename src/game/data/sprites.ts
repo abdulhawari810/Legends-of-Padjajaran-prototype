@@ -1,4 +1,4 @@
-// Batch BA-1: pipeline sprite eksternal untuk player.
+﻿// Batch BA-1: pipeline sprite eksternal untuk player.
 // Cara pakai:
 //   1. Copy file frame ke public/sprites/player/ (jangan serve dari free_assets).
 //   2. Isi PLAYER_FRAMES: key tekstur -> path file (format persis seperti di bawah).

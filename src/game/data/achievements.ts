@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 import { addGold } from './currency';
 import { getStats, totalKills } from './stats';
 import { getEnhance } from './enhance';
@@ -27,11 +27,11 @@ export const ACHIEVEMENTS: AchDef[] = [
   { id: 'skill-50', name: 'Ahli Skill', desc: 'Pakai skill 50 kali.', gold: 40 }
 ];
 
-const KEY = 'mmorpg-ach-v1';
+const KEY = (): string => scopedKey('mmorpg-ach-v1');
 
 function loadUnlocked(): Set<string> {
   try {
-    return new Set(loadJSON<string[]>(KEY, []));
+    return new Set(loadJSON<string[]>(KEY(), []));
   } catch {
     return new Set();
   }
@@ -40,7 +40,7 @@ function loadUnlocked(): Set<string> {
 let unlocked = loadUnlocked();
 
 function persist() {
-  saveJSON(KEY, [...unlocked]);
+  saveJSON(KEY(), [...unlocked]);
 }
 
 export function isUnlocked(id: string): boolean {

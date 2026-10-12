@@ -1,4 +1,4 @@
-import { loadJSON, saveJSON } from './persistence';
+﻿import { scopedKey, loadJSON, saveJSON } from './persistence';
 
 // Batch S: bounty harian per-map (reset tiap hari kalender lokal).
 export interface BountyDef {
@@ -22,7 +22,7 @@ export interface BountyState {
   done: string[];
 }
 
-const KEY = 'mmorpg-bounty-v1';
+const KEY = (): string => scopedKey('mmorpg-bounty-v1');
 
 function today(): string {
   const d = new Date();
@@ -37,7 +37,7 @@ function fresh(): BountyState {
 
 function load(): BountyState {
   try {
-    const s = loadJSON<BountyState>(KEY, fresh());
+    const s = loadJSON<BountyState>(KEY(), fresh());
     if (s.date !== today()) return fresh();
     return { date: s.date, progress: s.progress ?? {}, done: s.done ?? [] };
   } catch {
@@ -46,7 +46,7 @@ function load(): BountyState {
 }
 
 function persist(s: BountyState) {
-  saveJSON(KEY, s);
+  saveJSON(KEY(), s);
 }
 
 export interface BountyView extends BountyDef {

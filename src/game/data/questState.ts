@@ -1,7 +1,7 @@
-import { QUESTS } from './quests';
-import { loadJSON, saveJSON } from './persistence';
+﻿import { QUESTS } from './quests';
+import { scopedKey, loadJSON, saveJSON } from './persistence';
 
-const KEY = 'mmorpg-quests-v1';
+const KEY = (): string => scopedKey('mmorpg-quests-v1');
 
 interface Save {
   progress: Record<string, number>;
@@ -11,7 +11,7 @@ interface Save {
 
 function load(): Save {
   const fallback: Save = { progress: {}, done: [], claimed: [] };
-  const s = loadJSON<Save>(KEY, fallback);
+  const s = loadJSON<Save>(KEY(), fallback);
   QUESTS.forEach((q) => {
     if (s.progress[q.id] === undefined) s.progress[q.id] = 0;
   });
@@ -24,7 +24,7 @@ const done = new Set<string>(save.done);
 const claimed = new Set<string>(save.claimed);
 
 function persist() {
-  saveJSON(KEY, {
+  saveJSON(KEY(), {
     progress: Object.fromEntries(progress.entries()),
     done: [...done],
     claimed: [...claimed]
