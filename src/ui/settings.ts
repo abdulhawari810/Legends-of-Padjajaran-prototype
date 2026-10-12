@@ -1,6 +1,14 @@
 import { getVolume, isMuted, setMuted, setVolume, sfxClick } from '../game/audio';
 import { getQuality, setQuality, type Quality } from '../game/data/settings';
-import { exportSave, importSave } from '../game/data/save';
+import {
+  MAX_SLOTS,
+  deleteSlot,
+  exportSave,
+  importSave,
+  loadSlot,
+  saveSlot,
+  slotInfo
+} from '../game/data/save';
 
 // Panel pengaturan: volume, mute, kualitas partikel.
 export function initSettings() {
@@ -85,6 +93,97 @@ export function initSettings() {
       sayBackup('Kode tidak valid', false);
     }
   });
+
+  // ===== Batch D: slot save (2x klik = konfirmasi) =====
+  const slotList = document.getElementById('slot-list');
+  let armedKey: string | null = null;
+  let armedTimer = 0;
+  const arm = (key: string, btn: HTMLButtonElement, label: string): boolean => {
+    if (armedKey !== key) {
+      armedKey = key;
+      btn.textContent = label;
+      window.clearTimeout(armedTimer);
+      armedTimer = window.setTimeout(() => {
+        armedKey = null;
+        renderSlots();
+      }, 3000);
+      return false;
+    }
+    window.clearTimeout(armedTimer);
+    armedKey = null;
+    return true;
+  };
+
+  function renderSlots() {
+    if (!slotList) return;
+    slotList.innerHTML = '';
+    for (let i = 1; i <= MAX_SLOTS; i++) {
+      const info = slotInfo(i);
+      const row = document.createElement('div');
+      row.className = 'slot-row';
+      const label = info.empty
+        ? `Slot ${i} — kosong`
+        : `Slot ${i} — ${info.job.toUpperCase()} Lv.${info.level} • 💰${info.gold} • ⚔️${info.kill} • ${new Date(info.savedAt).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+      const name = document.createElement('div');
+      name.className = 'slot-name';
+      name.textContent = label;
+      row.appendChild(name);
+      const btns = document.createElement('div');
+      btns.className = 'slot-btns';
+      const bSave = document.createElement('button');
+      bSave.className = 'bag-btn';
+      bSave.textContent = '💾 Simpan';
+      bSave.addEventListener('click', () => {
+        if (!info.empty && !arm(`save${i}`, bSave, 'Timpa? Klik lagi!')) return;
+        const res = saveSlot(i);
+        sayBackup(res.ok ? `Slot ${i} tersimpan ✓` : (res.reason ?? 'Gagal simpan'), res.ok);
+        sfxClick();
+        renderSlots();
+      });
+      const bLoad = document.createElement('button');
+      bLoad.className = 'bag-btn';
+      bLoad.textContent = '📥 Muat';
+      bLoad.disabled = info.empty;
+      bLoad.addEventListener('click', () => {
+        if (!arm(`load${i}`, bLoad, 'Timpa progres? Klik lagi!')) return;
+        const res = loadSlot(i);
+        if (!res.ok) {
+          sayBackup(res.reason ?? 'Gagal muat', false);
+          renderSlots();
+          return;
+        }
+        sayBackup(`Slot ${i} dimuat, restart... ✓`, true);
+        window.setTimeout(() => window.location.reload(), 800);
+      });
+      const bDel = document.createElement('button');
+      bDel.className = 'bag-btn';
+      bDel.textContent = '🗑️';
+      bDel.disabled = info.empty;
+      bDel.title = 'Hapus slot';
+      bDel.addEventListener('click', () => {
+        if (!arm(`del${i}`, bDel, 'Hapus? Klik lagi!')) return;
+        deleteSlot(i);
+        sayBackup(`Slot ${i} dihapus`, true);
+        sfxClick();
+        renderSlots();
+      });
+      btns.append(bSave, bLoad, bDel);
+      row.appendChild(btns);
+      slotList.appendChild(row);
+    }
+  }
+
+  document.getElementById('btn-reset-map')?.addEventListener('click', () => {
+    sfxClick();
+    document.getElementById('settings-panel')?.classList.add('hidden');
+    window.dispatchEvent(new CustomEvent('reset-map'));
+  });
+
+  // segarkan daftar tiap panel dibuka (tombol ⚙️ di bawah juga render ulang)
+  const settingsBtn = document.getElementById('btn-settings');
+  const renderOnOpen = () => renderSlots();
+  settingsBtn?.addEventListener('click', renderOnOpen);
+  renderSlots();
 
   paintMute();
   paintQuality(getQuality());

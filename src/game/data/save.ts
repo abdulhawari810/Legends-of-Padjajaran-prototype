@@ -31,6 +31,14 @@ const KEY_JOBS = 'mmorpg-player-jobs-v1';
 const KEY_POS = 'mmorpg-player-pos-v1';
 const KEY_META = 'mmorpg-meta-v1';
 
+// Batch D: 3 slot save manual (snapshot semua key live).
+export const MAX_SLOTS = 3;
+export const SLOT_KEYS = [
+  'mmorpg-slot-1-v1',
+  'mmorpg-slot-2-v1',
+  'mmorpg-slot-3-v1'
+];
+
 const ALL_KEYS = [
   KEY_JOBS,
   KEY_POS,
@@ -43,7 +51,8 @@ const ALL_KEYS = [
   'mmorpg-bounty-v1',
   'mmorpg-enhance-v1',
   'mmorpg-stats-v1',
-  'mmorpg-ach-v1'
+  'mmorpg-ach-v1',
+  ...SLOT_KEYS
 ];
 
 export function loadJobSaves(): Partial<Record<JobId, JobSave>> {
@@ -127,5 +136,84 @@ export function importSave(obj: unknown): { ok: boolean; reason?: string } {
     return { ok: true };
   } catch {
     return { ok: false, reason: 'Gagal tulis (memori penuh?)' };
+  }
+}
+
+// ===== Batch D: slot save manual =====
+
+export interface SlotInfo {
+  empty: boolean;
+  savedAt: number;
+  job: JobId;
+  level: number;
+  kill: number;
+  gold: number;
+}
+
+interface SlotPayload {
+  v: 1;
+  info: Omit<SlotInfo, 'empty'>;
+  keys: Record<string, string | null>;
+}
+
+// Key live yang di-snapshot ke slot (tanpa slot lain agar tidak bersarang).
+const LIVE_KEYS = ALL_KEYS.filter((k) => !SLOT_KEYS.includes(k));
+
+export function slotInfo(i: number): SlotInfo {
+  const raw = loadJSON<SlotPayload | null>(SLOT_KEYS[i - 1] ?? '', null);
+  if (!raw || raw.v !== 1 || !raw.info) {
+    return { empty: true, savedAt: 0, job: 'warrior', level: 1, kill: 0, gold: 0 };
+  }
+  return { empty: false, ...raw.info };
+}
+
+export function saveSlot(i: number): { ok: boolean; reason?: string } {
+  if (i < 1 || i > MAX_SLOTS) return { ok: false, reason: 'Slot tidak valid' };
+  try {
+    const keys: Record<string, string | null> = {};
+    LIVE_KEYS.forEach((k) => {
+      keys[k] = localStorage.getItem(k);
+    });
+    const meta = loadMeta();
+    const jobs = loadJobSaves();
+    const cur = jobs[meta.currentJob];
+    const goldRaw = localStorage.getItem('mmorpg-gold-v1');
+    const payload: SlotPayload = {
+      v: 1,
+      info: {
+        savedAt: Date.now(),
+        job: meta.currentJob,
+        level: cur?.level ?? 1,
+        kill: meta.killCount ?? 0,
+        gold: goldRaw ? (JSON.parse(goldRaw) as number) : 0
+      },
+      keys
+    };
+    saveJSON(SLOT_KEYS[i - 1], payload);
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'Gagal tulis (memori penuh?)' };
+  }
+}
+
+export function loadSlot(i: number): { ok: boolean; reason?: string } {
+  const raw = loadJSON<SlotPayload | null>(SLOT_KEYS[i - 1] ?? '', null);
+  if (!raw || raw.v !== 1 || !raw.keys) return { ok: false, reason: 'Slot kosong' };
+  try {
+    Object.entries(raw.keys).forEach(([k, v]) => {
+      if (v === null || v === undefined) localStorage.removeItem(k);
+      else localStorage.setItem(k, v);
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'Gagal tulis (memori penuh?)' };
+  }
+}
+
+export function deleteSlot(i: number) {
+  try {
+    localStorage.removeItem(SLOT_KEYS[i - 1] ?? '');
+  } catch {
+    // abaikan
   }
 }

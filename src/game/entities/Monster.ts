@@ -217,4 +217,22 @@ export class Monster extends Phaser.Physics.Arcade.Sprite {
       }
     });
   }
+
+  /** Batch D: hapus instan tanpa loot/respawn (untuk reset map). */
+  despawn() {
+    this.alive = false;
+    this.scene.tweens.killTweensOf(this);
+    this.setVelocity(0, 0);
+    try {
+      this.hpBar.destroy();
+    } catch {
+      // sudah hancur
+    }
+    try {
+      this.nameText.destroy();
+    } catch {
+      // sudah hancur
+    }
+    this.destroy();
+  }
 }

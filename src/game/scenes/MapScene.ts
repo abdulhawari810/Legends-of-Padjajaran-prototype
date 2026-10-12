@@ -85,6 +85,8 @@ export class MapScene extends Phaser.Scene {
   private mapDef: MapDefShape = MAP_DEF;
   private spawnOverride: { x: number; y: number } | null = null;
   private portalReadyAt = 0;
+  /** Batch D: timer respawn yang belum jalan (dibatalkan saat reset map). */
+  private pendingRespawns: Phaser.Time.TimerEvent[] = [];
   /** Batch target-lock: monster yang diklik + cincin merah. */
   private locked: Monster | null = null;
   private lockRing: Phaser.GameObjects.Graphics | null = null;
@@ -103,6 +105,7 @@ export class MapScene extends Phaser.Scene {
     this.spawnOverride = data?.spawn ?? null;
     // reset state per map (scene di-restart saat pindah portal)
     this.monsters = [];
+    this.pendingRespawns = [];
     this.saveAccum = 0;
     this.healAccum = 0;
     this.npc = null;
@@ -389,6 +392,7 @@ export class MapScene extends Phaser.Scene {
     }) as EventListener);
     this.onWin("claim-quest", ((e: CustomEvent<string>) =>
       this.claimQuest(e.detail)) as EventListener);
+    this.onWin("reset-map", () => this.resetMap());
     this.onDom("interact-btn", "click", () => this.openNpc());
     this.onDom("npc-close", "click", () =>
       document.getElementById("npc-panel")?.classList.add("hidden")
@@ -613,6 +617,64 @@ export class MapScene extends Phaser.Scene {
     } catch {
       // abaikan
     }
+  }
+
+  /** Batch D: kembalikan map ke kondisi spawn penuh tanpa restart scene.
+   * Player tidak disentuh (HP/posisi tetap). Dipicu event `reset-map`. */
+  private resetMap() {
+    // batalkan semua respawn yang masih antre agar tidak overpopulasi
+    this.pendingRespawns.forEach((t) => {
+      try {
+        t.remove(false);
+      } catch {
+        // sudah jalan/hancur
+      }
+    });
+    this.pendingRespawns = [];
+    // sapu projectile
+    try {
+      this.projectiles.clear(true, true);
+    } catch {
+      // abaikan
+    }
+    // hapus semua monster (tanpa loot) — splice agar referensi array stabil
+    const copy = [...this.monsters];
+    this.monsters.splice(0, this.monsters.length);
+    if (this.locked) this.unlockTarget();
+    copy.forEach((m) => {
+      try {
+        m.despawn();
+      } catch {
+        // abaikan
+      }
+    });
+    // spawn ulang penuh sesuai def map ini
+    this.mapDef.monsterSpawns.forEach((s) => {
+      for (let i = 0; i < s.count; i++) {
+        try {
+          this.spawnMonster(s.monsterId);
+        } catch {
+          // abaikan satu spawn gagal
+        }
+      }
+    });
+    this.refreshNpcBubble();
+    const px = this.player?.x ?? this.mapDef.playerSpawn.x;
+    const py = (this.player?.y ?? this.mapDef.playerSpawn.y) - 60;
+    const txt = worldText(this, px, py, "🗺️ Map di-reset ✓", {
+      fontSize: "14px",
+      color: "#4ade80",
+      fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.55)",
+      padding: { x: 8, y: 4 }
+    }).setDepth(60);
+    this.tweens.add({
+      targets: txt,
+      y: py - 20,
+      alpha: 0,
+      duration: 1200,
+      onComplete: () => txt.destroy()
+    });
   }
 
   private isNearNpc(): boolean {
@@ -1497,7 +1559,12 @@ export class MapScene extends Phaser.Scene {
         // respawn sesuai def (boss 25 detik, biasa 4 detik)
         const respawnMs =
           MONSTERS.find((d) => d.id === monsterId)?.respawnMs ?? 4000;
-        this.time.delayedCall(respawnMs, () => this.spawnMonster(monsterId));
+        const timer = this.time.delayedCall(respawnMs, () => {
+          const ti = this.pendingRespawns.indexOf(timer);
+          if (ti >= 0) this.pendingRespawns.splice(ti, 1);
+          this.spawnMonster(monsterId);
+        });
+        this.pendingRespawns.push(timer);
       });
       const leveled = this.player.addExp(monsterExp);
       if (leveled) {
