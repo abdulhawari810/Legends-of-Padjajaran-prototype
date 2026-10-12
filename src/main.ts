@@ -1,5 +1,6 @@
 ﻿import './style.css';
 import { currentProfile, setProfileJob } from './game/data/auth';
+import type { JobId } from './game/data/jobs';
 import { bindAuthScreen, setAuthReadyCallback, showAuthScreen } from './ui/authScreen';
 
 // =============================================================================
@@ -37,11 +38,15 @@ async function launch() {
     await showAuthScreen();
     return;
   }
-  // Profil tanpa job (mis. screen pilih job gagal render) -> default warrior.
-  if (!profile.job) setProfileJob(profile.id, 'warrior');
+  // Job dari PROFIL AUTH, bukan dari save game. Save game masih kosong untuk
+  // karakter baru, jadi kalau kita ikut membacanya, player selalu dapat
+  // 'warrior' apa pun yang dipilih di layar pilih class.
+  const job: JobId = profile.job ?? 'warrior';
+  if (!profile.job) setProfileJob(profile.id, job);
 
   const app = await import('./app');
-  app.startGame(app.resolveJob());
+  // startGame() menulis job ke save game sebelum Player dibuat.
+  app.startGame(job);
 }
 
 void boot();

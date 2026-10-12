@@ -320,8 +320,10 @@ html, body {
   height: clamp(96px, 26vmin, 128px);
   border-radius: 50%;
   border: 2px solid rgba(201,162,39,.55);
-  background: rgba(20,16,10,.45);
-  backdrop-filter: blur(2px);
+  /* JANGAN pakai backdrop-filter di sini: elemen ini menutup kanvas game yang
+     direpaint tiap frame, jadi browser harus membaca + blur area itu terus
+     menerus -> berat di HP kentang. Cukup warna semi-transparan. */
+  background: rgba(20,16,10,.72);
   box-shadow: 0 0 0 2px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.5);
   position: relative;
   flex: none;
@@ -332,7 +334,8 @@ html, body {
 }
 #joystick-base.active {
   border-color: rgba(201,162,39,.95);
-  background: rgba(201,162,39,.15);
+  /* dulu .15 + blur; tanpa blur harus tetap pekat biar tidak tembus pandang */
+  background: rgba(92,74,24,.88);
 }
 #joystick-knob {
   position: absolute;

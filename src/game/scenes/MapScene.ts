@@ -133,6 +133,10 @@ export class MapScene extends Phaser.Scene {
   private dieFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private coinFx!: Phaser.GameObjects.Particles.ParticleEmitter;
   private levelFx!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Texture hasil bake (dibuat sekali tiap create, dibuang saat shutdown). */
+  private bakedTextures = new Set<string>();
+  /** Graphics latar gabungan (tanah + dekorasi datar) -> di-bake jadi 1 texture. */
+  private bgGfx: Phaser.GameObjects.Graphics | null = null;
 
   constructor() {
     super("Map");
@@ -157,6 +161,55 @@ export class MapScene extends Phaser.Scene {
     this.portalReadyAt = 0;
     this.locked = null;
     this.lockRing = null;
+    this.bgGfx = null;
+  }
+
+  /**
+   * Buang semua texture hasil bake scene ini.
+   *
+   * Listener ini didaftarkan di create(), sedangkan DisplayList mendaftarkan
+   * destroy game object-nya saat scene START (yaitu sebelum create). Karena
+   * EventEmitter menjalankan listener berdasarkan urutan daftar, DisplayList
+   * jalan lebih dulu -> saat fungsi ini jalan semua pemakai texture sudah
+   * dihancurkan, jadi aman.
+   */
+  private freeBakedTextures = () => {
+    this.bakedTextures.forEach((key) => {
+      if (this.textures.exists(key)) this.textures.remove(key);
+    });
+    this.bakedTextures.clear();
+  };
+
+  /**
+   * Bake Graphics menjadi 1 texture statis, lalu ganti dengan Image biasa di
+   * posisi/depth yang sama.
+   *
+   * Kenapa: Graphics Phaser tidak di-cache — `commandBuffer` di-loop ulang tiap
+   * frame oleh renderer. Untuk tanah (±2.400 tile) itu berarti ±41.000 perintah
+   * gambar PER FRAME hanya untuk benda yang tidak pernah berubah. Setelah bake,
+   * sisa biayanya cuma 1 gambar.
+   *
+   * `force` = bake ulang walau key sudah ada (dipakai untuk texture yang bisa
+   * berbeda ukuran antar map, mis. tanah).
+   */
+  private bakeSprite(
+    g: Phaser.GameObjects.Graphics,
+    key: string,
+    w: number,
+    h: number,
+    force = false
+  ): Phaser.GameObjects.Image {
+    const { x, y, depth } = g;
+    if (force && this.textures.exists(key)) this.textures.remove(key);
+    if (!this.textures.exists(key)) {
+      g.generateTexture(key, w, h);
+      this.bakedTextures.add(key);
+    }
+    g.destroy();
+    return this.add
+      .image(x, y, key)
+      .setOrigin(0, 0)
+      .setDepth(depth);
   }
 
   create() {
@@ -274,6 +327,9 @@ export class MapScene extends Phaser.Scene {
     this.refreshNpcBubble();
 
     this.bindGlobalListeners();
+
+    // Texture hasil bake (tanah/pohon/rumah/portal) dibuang saat pindah scene.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.freeBakedTextures);
 
     this.attackKey = this.input.keyboard!.addKey("SPACE");
     this.skillKeyQ = this.input.keyboard!.addKey("Q");
@@ -571,11 +627,18 @@ export class MapScene extends Phaser.Scene {
 
   private createPortals() {
     this.mapDef.portals.forEach((p) => {
-      const g = this.add.graphics().setDepth(2);
+      // Lingkaran glow tidak berubah -> bake jadi 1 texture per radius
+      // (offset 3 = ruang untuk lineStyle 3px di tepi lingkaran).
+      const g = this.add
+        .graphics()
+        .setPosition(p.x - p.r - 3, p.y - p.r - 3)
+        .setDepth(2);
+      const c = p.r + 3;
       g.fillStyle(0x22d3ee, 0.25);
-      g.fillCircle(p.x, p.y, p.r);
+      g.fillCircle(c, c, p.r);
       g.lineStyle(3, 0x22d3ee, 0.9);
-      g.strokeCircle(p.x, p.y, p.r);
+      g.strokeCircle(c, c, p.r);
+      this.bakeSprite(g, `dec-portal-${p.r}`, p.r * 2 + 6, p.r * 2 + 6);
       const dest = getMapDef(p.to);
       worldText(this, p.x, p.y + p.r + 12, `➡ ${dest.name}`, {
         fontSize: "12px",
@@ -2278,11 +2341,17 @@ export class MapScene extends Phaser.Scene {
     })
       .setOrigin(0.5)
       .setDepth(2);
+
+    // Jangan bake di sini: dekorasi datar (tembok/kolam/bunga) masih digambar ke
+    // Graphics yang sama oleh createDecorations(), lalu di-bake jadi SATU texture.
+    this.bgGfx = g;
   }
 
   private createDecorations() {
     // flat (di bawah entity): tembok + kolam + bunga
-    const g = this.add.graphics().setDepth(1);
+    // Ditarik ke Graphics latar milik createGround() supaya tanah + dekorasi
+    // datar cukup jadi SATU texture bake (hemat memori, 1 gambar per frame).
+    const g = this.bgGfx ?? this.add.graphics().setDepth(1);
     const W = this.mapDef.widthPx;
     const H = this.mapDef.heightPx;
     g.fillStyle(0x374151, 1);
@@ -2299,41 +2368,43 @@ export class MapScene extends Phaser.Scene {
       g.fillEllipse(p.x, p.y, p.rx * 1.5, p.ry * 1.4);
     }
     // rumah per-objek agar Y-sort (player depan/belakang benar)
+    // -> bake jadi texture per ukuran/tema; koordinat digeser ke lokal
+    //    (offset 8,18 = overhang atap) supaya muat di texture.
     this.mapDef.houses.forEach((h) => {
-      const hg = this.add.graphics().setDepth(10 + (h.y + h.h) * 0.01);
-      hg.fillStyle(this.mapDef.theme === "dark" ? 0x57534e : 0x92400e, 1);
-      hg.fillRect(h.x, h.y + 24, h.w, h.h - 24);
-      hg.fillStyle(this.mapDef.theme === "dark" ? 0x1c1917 : 0x7f1d1d, 1);
-      hg.fillTriangle(
-        h.x - 8,
-        h.y + 26,
-        h.x + h.w / 2,
-        h.y - 18,
-        h.x + h.w + 8,
-        h.y + 26
-      );
+      const dark = this.mapDef.theme === "dark";
+      const hg = this.add.graphics().setPosition(h.x - 8, h.y - 18);
+      hg.fillStyle(dark ? 0x57534e : 0x92400e, 1);
+      hg.fillRect(8, 42, h.w, h.h - 24);
+      hg.fillStyle(dark ? 0x1c1917 : 0x7f1d1d, 1);
+      hg.fillTriangle(0, 44, h.w / 2 + 8, 0, h.w + 16, 44);
       hg.fillStyle(0x1f2937, 1);
-      hg.fillRect(h.x + h.w / 2 - 10, h.y + h.h - 34, 20, 34);
+      hg.fillRect(h.w / 2 - 2, h.h - 16, 20, 34);
       hg.fillStyle(0xfbbf24, 1);
-      hg.fillRect(h.x + 12, h.y + 40, 16, 14);
-      hg.fillRect(h.x + h.w - 28, h.y + 40, 16, 14);
+      hg.fillRect(20, 58, 16, 14);
+      hg.fillRect(h.w - 20, 58, 16, 14);
+      hg.setDepth(10 + (h.y + h.h) * 0.01);
+      this.bakeSprite(hg, `dec-house-${dark ? "dark" : "light"}-${h.w}x${h.h}`, h.w + 16, h.h + 18);
     });
     // pohon per-objek agar Y-sort (gua: stalagmit abu)
+    // -> bake 1 texture per tema; offset (17,29) = pusat pohon di dalam 34x44.
+    const treeKey = `dec-tree-${this.mapDef.theme === "green" ? "green" : "stone"}`;
     this.mapDef.trees.forEach((t) => {
-      const tg = this.add.graphics().setDepth(10 + (t.y + 13) * 0.01);
+      const tg = this.add.graphics().setPosition(t.x - 17, t.y - 29);
       tg.fillStyle(0x78350f, 1);
-      tg.fillRect(t.x - 3, t.y - 2, 6, 14);
+      tg.fillRect(14, 27, 6, 14);
       if (this.mapDef.theme === "green") {
         tg.fillStyle(0x166534, 1);
-        tg.fillCircle(t.x, t.y - 12, 16);
+        tg.fillCircle(17, 17, 16);
         tg.fillStyle(0x22c55e, 1);
-        tg.fillCircle(t.x - 5, t.y - 16, 9);
+        tg.fillCircle(12, 13, 9);
       } else {
         tg.fillStyle(0x44403c, 1);
-        tg.fillCircle(t.x, t.y - 12, 15);
+        tg.fillCircle(17, 17, 15);
         tg.lineStyle(2, 0x292524, 1);
-        tg.strokeCircle(t.x, t.y - 12, 15);
+        tg.strokeCircle(17, 17, 15);
       }
+      tg.setDepth(10 + (t.y + 13) * 0.01);
+      this.bakeSprite(tg, treeKey, 34, 44);
     });
     // bunga + rumput deterministik (tanpa collision)
     let seed = this.mapDef.theme === "dark" ? 21 : 7;
@@ -2361,6 +2432,12 @@ export class MapScene extends Phaser.Scene {
         g.fillRect(x, y, 2, 5);
       }
     }
+
+    // Bake SEMUA yang statis di lapisan bawah (tanah + tembok + kolam + bunga)
+    // jadi 1 texture per map. Setelah ini tidak ada lagi Graphics raksasa yang
+    // dirender ulang tiap frame.
+    this.bgGfx = null;
+    this.bakeSprite(g, `map-bg-${this.mapId}`, W, H, true);
   }
 
   private createObstacles() {

@@ -13,7 +13,8 @@ import { initChat } from './ui/chat';
 import { initTargetPanel } from './ui/targetPanel';
 import { initQuickMenu } from './ui/quickmenu';
 import { initLandscape } from './ui/orientation';
-import { loadMeta } from './game/data/save';
+import { loadMeta, saveMeta } from './game/data/save';
+import type { JobId } from './game/data/jobs';
 import { initAudio, isMuted, setMuted, sfxClick } from './game/audio';
 
 // =============================================================================
@@ -22,7 +23,21 @@ import { initAudio, isMuted, setMuted, sfxClick } from './game/audio';
 // Dipanggil dari main.ts lewat dynamic `import('./app')`.
 // =============================================================================
 
-export function startGame(jobId: string) {
+export function startGame(jobId: JobId) {
+  // Tulis job ke SAVE GAME dulu, sebelum Player dibuat.
+  //
+  // Player membaca `loadMeta().currentJob` di konstruktor lalu langsung
+  // mengunci diri (`jobLocked = true`). Job dari layar auth tersimpan di
+  // `mmorpg-auth-v1`, BUKAN di save game — jadi kalau tidak ditulis ke sini,
+  // karakter baru selalu fallback ke 'warrior' apa pun yang dipilih pemain,
+  // lalu terkunci permanen.
+  try {
+    const meta = loadMeta();
+    if (meta.currentJob !== jobId) saveMeta({ ...meta, currentJob: jobId });
+  } catch {
+    // save korup -> biarkan default
+  }
+
   const container = document.getElementById('game-container');
   if (container) createGame(container);
 
@@ -72,7 +87,11 @@ export function paintJob(jobId: string) {
   }
 }
 
-/** Job efektif: dari save profil, fallback warrior. */
+/**
+ * Job efektif dari SAVE GAME. Hanya dipakai sebagai diagnosis/debug —
+ * untuk boot, `startGame()` menerima job dari profil auth lalu MENULISNYA
+ * ke save game lebih dulu.
+ */
 export function resolveJob(): string {
   try {
     const meta = loadMeta();

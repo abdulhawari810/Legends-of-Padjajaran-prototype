@@ -36,6 +36,15 @@ const AVATAR_OVERRIDE: Record<string, string> = {};
 
 let view: CharView = 'status';
 
+// Throttle render panel karakter.
+// `stats-changed` dikirim Player tiap kena damage / heal / pakai mana / regen —
+// saat combat bisa beberapa kali per detik. Render = ganti innerHTML + hitung
+// ulang layout, jadi dibatasi supaya tidak menumpuk di HP kentang.
+const STATS_RENDER_MS = 200;
+let pendingStats: StatsSnapshot | null = null;
+let statsTimer = 0;
+let lastStatsRender = 0;
+
 // Panel karakter: artwork + tab Status / Ability / Quest / Skill.
 export function initCharPanel() {
   const panel = document.getElementById('char-panel')!;
@@ -86,7 +95,27 @@ export function initCharPanel() {
   }) as EventListener);
 
   window.addEventListener('stats-changed', ((e: CustomEvent<StatsSnapshot>) => {
-    render(e.detail);
+    // snapshot selalu disimpan (dipakai refreshCharPanel saat panel dibuka)
+    lastSnapshot = e.detail;
+    pendingStats = e.detail;
+
+    // panel tertutup = tidak usah render sama sekali
+    const panel = document.getElementById('char-panel');
+    if (!panel || panel.classList.contains('hidden')) return;
+
+    // throttle: render paling cepat STATS_RENDER_MS sekali
+    if (statsTimer) return;
+    const wait = Math.max(0, STATS_RENDER_MS - (performance.now() - lastStatsRender));
+    statsTimer = window.setTimeout(() => {
+      statsTimer = 0;
+      const s = pendingStats;
+      pendingStats = null;
+      if (!s) return;
+      const p = document.getElementById('char-panel');
+      if (!p || p.classList.contains('hidden')) return;
+      lastStatsRender = performance.now();
+      render(s);
+    }, wait);
   }) as EventListener);
 
   // --- profil: tampilkan nama + tombol logout / hapus progres ---

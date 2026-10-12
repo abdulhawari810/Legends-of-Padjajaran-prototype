@@ -35,6 +35,9 @@ export function initBuffBar() {
   };
 
   const render = () => {
+    // Tidak ada chip = tidak ada yang di-update. Tanpa guard ini, interval
+    // 250ms tetap menyentuh DOM (innerHTML = '') tiap tick walau buff kosong.
+    if (chips.size === 0) return;
     const now = Date.now();
     let alive = 0;
     chips.forEach((chip, name) => {
