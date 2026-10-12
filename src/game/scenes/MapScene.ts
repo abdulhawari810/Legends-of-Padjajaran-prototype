@@ -1,8 +1,9 @@
-import Phaser from "phaser";
+﻿import Phaser from "phaser";
 import { MAP_DEF, getMapDef, type MapDefShape, type MapId } from "../data/map";
 import { MONSTERS } from "../data/monsters";
 import { Player } from "../entities/Player";
 import { Monster } from "../entities/Monster";
+import * as timers from "../entities/persistentTimers";
 import { Npc } from "../entities/Npc";
 import { VirtualInput } from "../input/VirtualInput";
 import {
@@ -265,6 +266,10 @@ export class MapScene extends Phaser.Scene {
     this.mapDef.gather.forEach((g) => this.spawnNode(g.kind, g.x, g.y));
     this.createPortals();
 
+    // Bersihkan timer yang sudah lewat supaya tidak menumpuk (ganti map sering).
+    // State yang MASIH aktif sengaja tidak disentuh: cooldown skill & buff
+    // harus lanjut berjalan melewati batas map.
+    timers.pruneExpiredState();
     this.player = new Player(
       this,
       this.mapDef.playerSpawn.x,
@@ -1313,7 +1318,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   private tryAttack() {
-    const now = this.time.now;
+    // jam global: lastAttackAt bertahan lintas ganti map
+    const now = timers.nowMs();
     if (!this.player.canAttack(now)) return;
     this.cancelCast(); // aksi lain = cast batal
     this.player.markAttacked(now);
@@ -1567,7 +1573,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   private trySkill(slot = 0) {
-    const now = this.time.now;
+    // jam global: cooldown skill harus bertahan saat ganti map
+    const now = timers.nowMs();
     const def = getSkill(this.player.jobId, slot);
     if (!def) return;
     if (this.player.dead) return;
@@ -1890,7 +1897,10 @@ export class MapScene extends Phaser.Scene {
       this.cancelCast();
       return;
     }
-    const p = Math.min(1, (this.time.now - c.t0) / c.dur);
+    // `c.t0` diisi dari jam global (trySkill memakai timers.nowMs()), jadi
+    // pembandingnya WAJIB jam global juga. Kalau memakai this.time.now,
+    // cast salah hitung karena dua clock berbeda.
+    const p = Math.min(1, (timers.nowMs() - c.t0) / c.dur);
     if (this.castBar) {
       const w = 64;
       this.castBar.clear();

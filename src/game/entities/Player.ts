@@ -1,13 +1,13 @@
-﻿import Phaser from 'phaser';
-import { JOBS, type JobId } from '../data/jobs';
-import { VirtualInput } from '../input/VirtualInput';
+﻿import Phaser from "phaser";
+import { JOBS, type JobId } from "../data/jobs";
+import { VirtualInput } from "../input/VirtualInput";
 import {
   expForLevel,
   mitigatePhysical,
   rollCrit,
   type Derived,
-  type Primary
-} from '../data/attributes';
+  type Primary,
+} from "../data/attributes";
 import {
   calcDerivedWithGear,
   equipItem,
@@ -16,25 +16,26 @@ import {
   getEquippedArmorId,
   getEquippedWeaponId,
   starterArmorFor,
-  starterWeaponFor
-} from '../data/equipment';
-import { loadJobSave, saveJobSave, saveMeta, loadMeta } from '../data/save';
-import { getItem } from '../data/items';
+  starterWeaponFor,
+} from "../data/equipment";
+import { loadJobSave, saveJobSave, saveMeta, loadMeta } from "../data/save";
+import { getItem } from "../data/items";
 import {
   canDecrement,
   canIncrement,
   hasStagedChange,
-  stagedUsed
-} from '../data/attrRules';
-import { getQuickItem } from '../data/quickslots';
-import { SKILLS } from '../data/skills';
-import { skillCd } from '../data/skillLevel';
-import { sfxPotion } from '../audio';
-import { isBehindHud, worldText } from '../text';
-import { addSkillUse } from '../data/stats';
-import { checkSkills } from '../data/achievements';
+  stagedUsed,
+} from "../data/attrRules";
+import { getQuickItem } from "../data/quickslots";
+import { SKILLS } from "../data/skills";
+import { skillCd } from "../data/skillLevel";
+import { sfxPotion } from "../audio";
+import { isBehindHud, worldText } from "../text";
+import { addSkillUse } from "../data/stats";
+import { checkSkills } from "../data/achievements";
+import * as timers from "./persistentTimers";
 
-export type Facing = 'down' | 'up' | 'left' | 'right';
+export type Facing = "down" | "up" | "left" | "right";
 
 export interface StatsSnapshot {
   jobId: JobId;
@@ -53,14 +54,20 @@ export interface StatsSnapshot {
   spent: Primary;
   pending: Primary;
   /** Buff makanan aktif (untuk UI bar buff + panel Equipment). */
-  activeBuffs?: Array<{ id: string; icon: string; name: string; value: number; left: number }>;
+  activeBuffs?: Array<{
+    id: string;
+    icon: string;
+    name: string;
+    value: number;
+    left: number;
+  }>;
 }
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  jobId: JobId = 'warrior';
+  jobId: JobId = "warrior";
   /** Job permanen: setelah setJob pertama di konstruktor, kunci class. */
   jobLocked = false;
-  facing: Facing = 'down';
+  facing: Facing = "down";
   speed = 170;
 
   level = 1;
@@ -80,33 +87,76 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   attackRange = 70;
   baseCooldownMs = 380;
   isRanged = false;
-  projectileTexture = 'proj-arrow';
+  projectileTexture = "proj-arrow";
   dead = false;
   potionCooldownMs = 5000;
   private nameText!: Phaser.GameObjects.Text;
-  private lastTitle = '';
-  private lastAttackAt = 0;
-  private lastPotionAt = -9999;
-  private lastSkillAt: Record<JobId, [number, number, number]> = {
-    warrior: [-99999, -99999, -99999],
-    mage: [-99999, -99999, -99999],
-    archer: [-99999, -99999, -99999]
-  };
-  /** Batch N: buff habis waktu (ms scene.time). */
-  shieldUntil = 0;
-  swiftUntil = 0;
-  /** Buff makanan: flat atk/armor + sisa waktu (ms scene.time). */
-  buffAtk = 0;
-  buffAtkUntil = 0;
-  buffDef = 0;
-  buffDefUntil = 0;
+  private lastTitle = "";
+  // Timer TIDAK lagi field instance: scene.restart() saat ganti map membuat
+  // `new Player()`, sehingga cooldown/buff di sini akan ikut hilang.
+  // Sekarang semua timer dibaca/tulis ke store module-level (persistentTimers)
+  // yang bertahan lintas scene, dan berbasis `nowMs()` (global monotonic).
+  private get lastAttackAt() {
+    return timers.state().lastAttackAt;
+  }
+  private set lastAttackAt(v: number) {
+    timers.state().lastAttackAt = v;
+  }
+  private get lastPotionAt() {
+    return timers.state().lastPotionAt;
+  }
+  private set lastPotionAt(v: number) {
+    timers.state().lastPotionAt = v;
+  }
+  private get lastSkillAt() {
+    return timers.state().lastSkillAt;
+  }
+  /** Batch N: buff habis waktu (ms jam global nowMs(), bukan scene.time).
+      Disimpan di store supaya tidak hilang saat ganti map. */
+  get shieldUntil() {
+    return timers.state().shieldUntil;
+  }
+  set shieldUntil(v: number) {
+    timers.state().shieldUntil = v;
+  }
+  get swiftUntil() {
+    return timers.state().swiftUntil;
+  }
+  set swiftUntil(v: number) {
+    timers.state().swiftUntil = v;
+  }
+  /** Buff makanan: flat atk/armor + sisa waktu (ms jam global). */
+  get buffAtk() {
+    return timers.state().buffAtk;
+  }
+  set buffAtk(v: number) {
+    timers.state().buffAtk = v;
+  }
+  get buffAtkUntil() {
+    return timers.state().buffAtkUntil;
+  }
+  set buffAtkUntil(v: number) {
+    timers.state().buffAtkUntil = v;
+  }
+  get buffDef() {
+    return timers.state().buffDef;
+  }
+  set buffDef(v: number) {
+    timers.state().buffDef = v;
+  }
+  get buffDefUntil() {
+    return timers.state().buffDefUntil;
+  }
+  set buffDefUntil(v: number) {
+    timers.state().buffDefUntil = v;
+  }
   private regenAccum = 0;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private wasd!: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
+  private wasd!: Record<"W" | "A" | "S" | "D", Phaser.Input.Keyboard.Key>;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'player-down-0');
+    super(scene, x, y, "player-down-0");
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setCollideWorldBounds(true);
@@ -120,10 +170,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setupInput();
     // Batch C: mulai dari job terakhir, bukan selalu warrior
     // (kalau selalu warrior, meta.currentJob ketimpa sebelum MapScene restore)
-    let initialJob: JobId = 'warrior';
+    let initialJob: JobId = "warrior";
     try {
       const meta = loadMeta();
-      if (meta.currentJob === 'warrior' || meta.currentJob === 'mage' || meta.currentJob === 'archer') {
+      if (
+        meta.currentJob === "warrior" ||
+        meta.currentJob === "mage" ||
+        meta.currentJob === "archer"
+      ) {
         initialJob = meta.currentJob;
       }
     } catch {
@@ -133,18 +187,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // kunci class: karakter ini tidak bisa ganti job selamanya
     this.jobLocked = true;
 
-    this.nameText = worldText(scene, x, y - 60, '', {
-      fontSize: '11px',
-      color: '#ffffff',
-      fontStyle: 'bold',
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      padding: { x: 4, y: 1 }
+    this.nameText = worldText(scene, x, y - 60, "", {
+      fontSize: "11px",
+      color: "#ffffff",
+      fontStyle: "bold",
+      backgroundColor: "rgba(0,0,0,0.45)",
+      padding: { x: 4, y: 1 },
     }).setOrigin(0.5);
 
-    window.addEventListener('select-job', this.onSelectJob);
-    window.addEventListener('use-quick', this.onUseQuick);
-    window.addEventListener('equipment-changed', this.onEquipmentChanged);
-    window.addEventListener('allocate-attr', this.onAllocateAttr);
+    window.addEventListener("select-job", this.onSelectJob);
+    window.addEventListener("use-quick", this.onUseQuick);
+    window.addEventListener("equipment-changed", this.onEquipmentChanged);
+    window.addEventListener("allocate-attr", this.onAllocateAttr);
   }
 
   private onSelectJob = ((e: CustomEvent<JobId>) => {
@@ -166,19 +220,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.saveCurrentJob();
   }) as EventListener;
 
-  private onAllocateAttr = ((e: CustomEvent<string | { stat: string; delta: number }>) => {
+  private onAllocateAttr = ((
+    e: CustomEvent<string | { stat: string; delta: number }>
+  ) => {
     const d = e.detail;
-    const stat = (typeof d === 'string' ? d : d.stat) as keyof Primary;
-    const delta = (typeof d === 'string' ? 1 : d.delta) as 1 | -1;
+    const stat = (typeof d === "string" ? d : d.stat) as keyof Primary;
+    const delta = (typeof d === "string" ? 1 : d.delta) as 1 | -1;
     this.stageAttr(stat, delta);
   }) as EventListener;
 
   destroy(fromScene?: boolean): void {
     // scene di-restart tiap pindah portal: lepas listener agar tidak ganda
-    window.removeEventListener('select-job', this.onSelectJob);
-    window.removeEventListener('use-quick', this.onUseQuick);
-    window.removeEventListener('equipment-changed', this.onEquipmentChanged);
-    window.removeEventListener('allocate-attr', this.onAllocateAttr);
+    window.removeEventListener("select-job", this.onSelectJob);
+    window.removeEventListener("use-quick", this.onUseQuick);
+    window.removeEventListener("equipment-changed", this.onEquipmentChanged);
+    window.removeEventListener("allocate-attr", this.onAllocateAttr);
     try {
       this.nameText?.destroy();
     } catch {
@@ -195,17 +251,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   useQuickItem(itemId: string | null): boolean {
     if (this.dead) return false;
     const def = itemId ? getItem(itemId) : undefined;
-    if (!def || def.type !== 'consumable') return false;
+    if (!def || def.type !== "consumable") return false;
 
-    const now = this.scene.time.now;
-    const isPotion = def.quick === 'hp' || def.quick === 'mp';
+    const now = timers.nowMs();
+    const isPotion = def.quick === "hp" || def.quick === "mp";
 
     // ---- SEMUA validasi dulu, baru ada mutasi ----
     // Kalau validasi AFTER mutasi, item dengan 2 efek bisa mengubah HP tapi
     // lalu return false (item hilang tanpa efek) atau sebaliknya.
     if (!def.heal && !def.mana && !def.buffAtk && !def.buffDef) return false;
     // cooldown global hanya untuk potion (HP/MP), bukan makanan
-    if (isPotion && now - this.lastPotionAt < this.potionCooldownMs) return false;
+    if (isPotion && now - this.lastPotionAt < this.potionCooldownMs)
+      return false;
     if (def.heal && this.hp >= this.derived.maxHp) return false;
     if (def.mana && this.mp >= this.derived.maxMp) return false;
     // buff serupa masih aktif -> jangan ditumpuk
@@ -235,9 +292,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     this.emitStats();
     sfxPotion();
-    window.dispatchEvent(new CustomEvent('quick-item-used', { detail: { id: def.id, kind: def.quick ?? 'hp' } }));
-    if (isPotion) window.dispatchEvent(new CustomEvent('potion-used', { detail: this.potionCooldownMs }));
-    if (def.buffAtk || def.buffDef) window.dispatchEvent(new CustomEvent('buff-used', { detail: def.id }));
+    window.dispatchEvent(
+      new CustomEvent("quick-item-used", {
+        detail: { id: def.id, kind: def.quick ?? "hp" },
+      })
+    );
+    if (isPotion)
+      window.dispatchEvent(
+        new CustomEvent("potion-used", { detail: this.potionCooldownMs })
+      );
+    if (def.buffAtk || def.buffDef)
+      window.dispatchEvent(new CustomEvent("buff-used", { detail: def.id }));
     return true;
   }
 
@@ -260,23 +325,35 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   /** Damage monster fisik ke player dengan mitigasi WoW. */
-  takeDamage(raw: number): { actual: number; dodged: boolean; blocked: boolean; died: boolean } {
-    if (this.dead) return { actual: 0, dodged: false, blocked: false, died: true };
+  takeDamage(raw: number): {
+    actual: number;
+    dodged: boolean;
+    blocked: boolean;
+    died: boolean;
+  } {
+    if (this.dead)
+      return { actual: 0, dodged: false, blocked: false, died: true };
     if (Math.random() < this.derived.dodge) {
       return { actual: 0, dodged: true, blocked: false, died: false };
     }
     let blocked = false;
     // Batch N: Bulwark (shield) = damage -40% + selalu block
-    const now = this.scene.time.now;
+    const now = timers.nowMs();
     if (now < this.shieldUntil) {
       blocked = true;
       raw = Math.round(raw * 0.6);
-    } else if (this.derived.blockChance > 0 && Math.random() < this.derived.blockChance) {
+    } else if (
+      this.derived.blockChance > 0 &&
+      Math.random() < this.derived.blockChance
+    ) {
       blocked = true;
       raw = Math.round(raw * (1 - this.derived.blockValue));
     }
     let actual = mitigatePhysical(raw, this.derived.armor);
-    actual = Math.max(1, Math.round(actual * (1 - this.derived.tenacity * 0.3)));
+    actual = Math.max(
+      1,
+      Math.round(actual * (1 - this.derived.tenacity * 0.3))
+    );
     this.hp -= actual;
     // flash merah
     this.setTint(0xef4444);
@@ -296,8 +373,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(0, 0);
     this.anims.stop();
     this.setAlpha(0.5);
+    // Mati = buff habis (shield/swift/buff makanan). Cooldown skill SENGAJA
+    // TIDAK direset: masih berjalan di detik-detik ini, dan reset di sini
+    // akan jadi exploit (bunuh-diri untuk skip cooldown).
+    this.shieldUntil = 0;
+    this.swiftUntil = 0;
+    this.buffAtk = 0;
+    this.buffAtkUntil = 0;
+    this.buffDef = 0;
+    this.buffDefUntil = 0;
+    this.recalc(false);
     this.emitStats();
-    window.dispatchEvent(new CustomEvent('player-died'));
+    window.dispatchEvent(new CustomEvent("player-died"));
   }
 
   respawn(x: number, y: number) {
@@ -307,7 +394,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.clearTint();
     this.recalc(true);
     this.emitStats();
-    window.dispatchEvent(new CustomEvent('player-respawned'));
+    window.dispatchEvent(new CustomEvent("player-respawned"));
   }
 
   setJob(jobId: JobId) {
@@ -335,7 +422,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         dex: Math.max(0, sp?.dex ?? 0),
         int: Math.max(0, sp?.int ?? 0),
         foc: Math.max(0, sp?.foc ?? 0),
-        con: Math.max(0, sp?.con ?? 0)
+        con: Math.max(0, sp?.con ?? 0),
       };
       this.pending = { str: 0, dex: 0, int: 0, foc: 0, con: 0 };
       // restore equip, fallback ke starter bila tidak valid
@@ -346,8 +433,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (!ra.ok) equipItem(starterArmorFor(jobId), jobId, 1);
       this.recalc(true);
       // restore hp/mp bila valid, kalau tidak full
-      if (saved.hp > 0 && saved.hp <= this.derived.maxHp) this.hp = Math.round(saved.hp);
-      if (saved.mp > 0 && saved.mp <= this.derived.maxMp) this.mp = Math.round(saved.mp);
+      if (saved.hp > 0 && saved.hp <= this.derived.maxHp)
+        this.hp = Math.round(saved.hp);
+      if (saved.mp > 0 && saved.mp <= this.derived.maxMp)
+        this.mp = Math.round(saved.mp);
     } else {
       this.level = 1;
       this.exp = 0;
@@ -363,20 +452,20 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
     this.emitStats();
 
-    if (jobId === 'warrior') {
+    if (jobId === "warrior") {
       this.attackRange = 70;
       this.baseCooldownMs = 380;
       this.isRanged = false;
-    } else if (jobId === 'mage') {
+    } else if (jobId === "mage") {
       this.attackRange = 240;
       this.baseCooldownMs = 600;
       this.isRanged = true;
-      this.projectileTexture = 'proj-fire';
+      this.projectileTexture = "proj-fire";
     } else {
       this.attackRange = 260;
       this.baseCooldownMs = 450;
       this.isRanged = true;
-      this.projectileTexture = 'proj-arrow';
+      this.projectileTexture = "proj-arrow";
     }
     // persist job + meta setelah pindah
     try {
@@ -391,10 +480,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.saveCurrentJob();
     // sinkron UI cooldown ke job baru (per-job per-slot, tidak ikut job lama)
     try {
-      const now = this.scene?.time?.now ?? 0;
+      // WAJIB jam global: setJob() juga dipanggil dari konstruktor Player, jadi
+      // tiap ganti map. Kalau pakai scene.time.now (reset ke 0 tiap restart),
+      // sisa cooldown yang sudah berjalan jadi terlihat 0 -> skill langsung aktif.
+      const now = timers.nowMs();
       const defs = SKILLS[jobId] ?? [];
-      const left = [0, 1, 2].map((i) => this.skillCooldownLeft(now, skillCd(jobId, i, defs[i]?.cooldownMs ?? 0), i));
-      window.dispatchEvent(new CustomEvent('skill-cooldown-sync', { detail: left }));
+      const left = [0, 1, 2].map((i) =>
+        this.skillCooldownLeft(
+          now,
+          skillCd(jobId, i, defs[i]?.cooldownMs ?? 0),
+          i
+        )
+      );
+      window.dispatchEvent(
+        new CustomEvent("skill-cooldown-sync", { detail: left })
+      );
     } catch {
       // abaikan
     }
@@ -412,7 +512,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         hp: Math.round(this.hp),
         mp: Math.round(this.mp),
         freePoints: this.freePoints,
-        spent: { ...this.spent }
+        spent: { ...this.spent },
       });
     } catch {
       // abaikan quota error
@@ -550,7 +650,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       dex: this.primary.dex + gear.primary.dex,
       int: this.primary.int + gear.primary.int,
       foc: this.primary.foc + gear.primary.foc,
-      con: this.primary.con + gear.primary.con
+      con: this.primary.con + gear.primary.con,
     };
     return {
       jobId: this.jobId,
@@ -568,46 +668,60 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       freePoints: this.freePoints,
       spent: { ...this.spent },
       pending: { ...this.pending },
-      activeBuffs: this.activeBuffList()
+      activeBuffs: this.activeBuffList(),
     };
   }
 
   /** Daftar buff makanan aktif + sisa detiknya (untuk UI). */
-  activeBuffList(): Array<{ id: string; icon: string; name: string; value: number; left: number }> {
-    const now = this.scene.time.now;
-    const out: Array<{ id: string; icon: string; name: string; value: number; left: number }> = [];
+  activeBuffList(): Array<{
+    id: string;
+    icon: string;
+    name: string;
+    value: number;
+    left: number;
+  }> {
+    const now = timers.nowMs();
+    const out: Array<{
+      id: string;
+      icon: string;
+      name: string;
+      value: number;
+      left: number;
+    }> = [];
     if (this.buffAtk > 0 && this.buffAtkUntil > now) {
-      const def = getItem('roast-meat');
+      const def = getItem("roast-meat");
       out.push({
-        id: 'roast-meat',
-        icon: def?.icon ?? '🍖',
-        name: def?.name ?? 'Roast Meat',
+        id: "roast-meat",
+        icon: def?.icon ?? "🍖",
+        name: def?.name ?? "Roast Meat",
         value: this.buffAtk,
-        left: Math.ceil((this.buffAtkUntil - now) / 1000)
+        left: Math.ceil((this.buffAtkUntil - now) / 1000),
       });
     }
     if (this.buffDef > 0 && this.buffDefUntil > now) {
-      const def = getItem('herbal-tonic');
+      const def = getItem("herbal-tonic");
       out.push({
-        id: 'herbal-tonic',
-        icon: def?.icon ?? '🍵',
-        name: def?.name ?? 'Herbal Tonic',
+        id: "herbal-tonic",
+        icon: def?.icon ?? "🍵",
+        name: def?.name ?? "Herbal Tonic",
         value: this.buffDef,
-        left: Math.ceil((this.buffDefUntil - now) / 1000)
+        left: Math.ceil((this.buffDefUntil - now) / 1000),
       });
     }
     return out;
   }
 
   private emitStats() {
-    window.dispatchEvent(new CustomEvent('stats-changed', { detail: this.snapshot() }));
+    window.dispatchEvent(
+      new CustomEvent("stats-changed", { detail: this.snapshot() })
+    );
   }
 
   effectiveCooldown(): number {
     const base = this.baseCooldownMs / (1 + this.derived.hastePct);
     // Batch N: Swift = serang 30% lebih cepat
     try {
-      if (this.scene.time.now < this.swiftUntil) return base * 0.7;
+      if (timers.nowMs() < this.swiftUntil) return base * 0.7;
     } catch {
       // abaikan
     }
@@ -618,15 +732,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const kb = this.scene.input.keyboard!;
     this.cursors = kb.createCursorKeys();
     this.wasd = {
-      W: kb.addKey('W'),
-      A: kb.addKey('A'),
-      S: kb.addKey('S'),
-      D: kb.addKey('D')
+      W: kb.addKey("W"),
+      A: kb.addKey("A"),
+      S: kb.addKey("S"),
+      D: kb.addKey("D"),
     };
   }
 
   private createAnims() {
-    const dirs: Facing[] = ['down', 'up', 'left', 'right'];
+    const dirs: Facing[] = ["down", "up", "left", "right"];
     dirs.forEach((dir) => {
       const key = `walk-${dir}`;
       if (this.scene.anims.exists(key)) return;
@@ -634,21 +748,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         key,
         frames: [0, 1, 2, 3].map((f) => ({ key: `player-${dir}-${f}` })),
         frameRate: 8,
-        repeat: -1
+        repeat: -1,
       });
     });
   }
 
   update(time: number, delta: number) {
     // Y-sort dari kaki (sprite 64x64 @1.4x): yang kakinya lebih bawah tampil di depan
-    this.setDepth(10 + ((this.y + 40) * 0.01));
+    this.setDepth(10 + (this.y + 40) * 0.01);
     // label nama + level mengikuti (sembunyi saat ketutup HUD)
     const title = `${this.jobId.toUpperCase()} Lv.${this.level}`;
     if (title !== this.lastTitle) {
       this.lastTitle = title;
       this.nameText.setText(title);
     }
-    this.nameText.setPosition(this.x, this.y - 60);
+    this.nameText.setPosition(this.x, this.y - 30);
     this.nameText.setDepth(this.depth + 0.06);
     this.nameText.setVisible(!isBehindHud(this.scene, this.x, this.y - 44));
     if (this.dead) {
@@ -665,10 +779,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // buff makanan kedaluwarsa -> recalc derived (flat atk/armor dilepas)
-    const nowMs = this.scene.time.now;
+    const tNow = timers.nowMs();
     const buffExpired =
-      (this.buffAtk > 0 && this.buffAtkUntil <= nowMs) ||
-      (this.buffDef > 0 && this.buffDefUntil <= nowMs);
+      (this.buffAtk > 0 && this.buffAtkUntil <= tNow) ||
+      (this.buffDef > 0 && this.buffDefUntil <= tNow);
     if (buffExpired) {
       this.buffAtk = 0;
       this.buffAtkUntil = 0;
@@ -700,7 +814,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     // Batch N: Swift = gerak +15%
-    const timeNow = this.scene.time.now;
+    const timeNow = timers.nowMs();
     const sp = this.speed * (timeNow < this.swiftUntil ? 1.15 : 1);
     this.setVelocity(vx * sp, vy * sp);
 
@@ -709,9 +823,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (ax === 0 && ay === 0) {
       // idle
     } else if (ax >= ay) {
-      this.facing = vx < 0 ? 'left' : 'right';
+      this.facing = vx < 0 ? "left" : "right";
     } else {
-      this.facing = vy < 0 ? 'up' : 'down';
+      this.facing = vy < 0 ? "up" : "down";
     }
 
     if (vx === 0 && vy === 0) {
@@ -744,7 +858,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   skillCooldownLeft(now: number, cooldownMs: number, slot = 0): number {
-    return Math.max(0, cooldownMs - (now - (this.lastSkillAt[this.jobId]?.[slot] ?? -99999)));
+    return Math.max(
+      0,
+      cooldownMs - (now - (this.lastSkillAt[this.jobId]?.[slot] ?? -99999))
+    );
   }
 
   /** Konsumsi MP bila cukup. Return false bila MP kurang (tidak jadi skill). */
@@ -759,8 +876,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   /** damage sudah termasuk crit + variance, mitigasi armor monster dilakukan di MapScene */
   rollDamage(): { dmg: number; crit: boolean } {
     let base: number;
-    if (this.jobId === 'warrior') base = this.derived.pAtk;
-    else if (this.jobId === 'mage') base = this.derived.mAtk;
+    if (this.jobId === "warrior") base = this.derived.pAtk;
+    else if (this.jobId === "mage") base = this.derived.mAtk;
     else base = this.derived.rAtk;
     const variance = Phaser.Math.Between(-2, 3);
     let dmg = Math.max(1, base + variance);
@@ -771,14 +888,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   healFromLifesteal(dmgDealt: number) {
     if (this.derived.lifesteal > 0) {
-      this.hp = Math.min(this.derived.maxHp, this.hp + dmgDealt * this.derived.lifesteal);
+      this.hp = Math.min(
+        this.derived.maxHp,
+        this.hp + dmgDealt * this.derived.lifesteal
+      );
     }
   }
 
   facingVector(): { x: number; y: number } {
-    if (this.facing === 'left') return { x: -1, y: 0 };
-    if (this.facing === 'right') return { x: 1, y: 0 };
-    if (this.facing === 'up') return { x: 0, y: -1 };
+    if (this.facing === "left") return { x: -1, y: 0 };
+    if (this.facing === "right") return { x: 1, y: 0 };
+    if (this.facing === "up") return { x: 0, y: -1 };
     return { x: 0, y: 1 };
   }
 }

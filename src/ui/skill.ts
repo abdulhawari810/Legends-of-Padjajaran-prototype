@@ -36,28 +36,35 @@ export function initSkillButton() {
     btn.querySelector('.skill-cd')!.textContent = '';
   };
 
+  // Sisa cooldown disimpan sebagai WAKTU BERAKHIR (epoch ms), bukan sebagai
+  // hitung-turun lokal. Sebelumnya UI punya `let left = Math.ceil(ms/1000)` lalu
+  // `left -= 1` tiap detik — pen independen yang TIDAK tahu bahwa event
+  // `skill-cooldown-sync` baru saja mengirim sisa waktu terbaru setelah
+  // ganti map. Akibatnya tombol tampil siap padahal game masih cooldown.
+  const cooldownUntil: number[] = [0, 0, 0];
+
   const startCooldown = (i: number, ms: number) => {
     const btn = btns[i];
     window.clearInterval(timers[i]);
     timers[i] = 0;
     if (!btn) return;
     if (ms <= 0) {
+      cooldownUntil[i] = 0;
       clearCooldown(i);
       return;
     }
     btn.disabled = true;
     btn.classList.add('cooling');
-    let left = Math.ceil(ms / 1000);
+    // deadline absolut -> countdown tahan whatever yang terjadi di UI
+    cooldownUntil[i] = Date.now() + ms;
     const paint = () => {
       const el = btn.querySelector('.skill-cd');
-      if (el) el.textContent = left > 0 ? `${left}s` : '';
+      const secs = Math.max(0, Math.ceil((cooldownUntil[i] - Date.now()) / 1000));
+      if (el) el.textContent = secs > 0 ? `${secs}s` : '';
+      if (cooldownUntil[i] - Date.now() <= 0) clearCooldown(i);
     };
     paint();
-    timers[i] = window.setInterval(() => {
-      left -= 1;
-      if (left <= 0) clearCooldown(i);
-      else paint();
-    }, 1000);
+    timers[i] = window.setInterval(paint, 250);
   };
 
   btns.forEach((btn, i) => {
