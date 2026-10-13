@@ -110,3 +110,34 @@
 **Cara uji perubahan per file:** modul data → `npx vitest run <file>.test.ts`
 (bila ada) + `tsc --noEmit`; scene/entity/UI → `npm run dev` + skenario
 manual (lihat 10–11); semua → `npm run build` sebelum dianggap selesai.
+
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
+
+**A. Entry & boot:**
+1. Sebut 2 fungsi internal `main.ts` + kenapa import statis modul data di sana merusak profil. Uji: `npx vitest run bootOrder.test.ts` hijau.
+
+**B. Scene & dunia:**
+2. Sebut 3 helper publik `MapScene` (serang/skill/spawn) + aturan listener (`onWin/onDom`). Uji: jawab.
+
+**C. Entity & input:**
+3. Baca utuh `VirtualInput.ts` (43 baris): jelaskan `request` vs `consume`. Uji: jawab 2 kalimat.
+
+**D–F. Data:**
+4. Untuk `drops.ts`, `shop.ts`, `questState.ts`: sebut 1 fungsi kunci + 1 file test-nya masing-masing. Uji: `npm test` hijau.
+
+**G. UI:**
+5. Sebut 5 modul `init*` + pola yang sama (guard null + listener + dipanggil dari `app.ts`). Uji: jawab.
+
+**H. Konfigurasi:**
+6. Sebut isi `vite.config.ts` yang tidak boleh diubah (`base './'`) + alasannya. Uji: jawab.
+
+**Kriteria:** bisa menunjuk file yang tepat untuk setiap gejala bug dalam < 1 menit (pakai tabel di atas, bukan hafalan).
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. `boot()` (auth dulu) + `launch()` (dynamic `import('./app')` setelah profil aktif). Import statis = cache `loadJSON` milik profil salah selamanya (`currency.ts:4`).
+2. `tryAttack/trySkill/spawnMonster` (+ `damageMonster/resetMap/claimQuest`). Listener global WAJIB via `onWin/onDom` (auto-lepas `SHUTDOWN`).
+3. `request*` menandai antrean; `consume*` membaca SEKALI lalu mengosongkan → 1 tap = 1 aksi.
+4. `rollDrops`→`drops.test.ts`; `buyItem/sellItem`→`shop.test.ts`; `registerKill/claimReward`→`questObjectives.test.ts`/`questState.test.ts`.
+5. Mis. `initAttackButton/initJoystick/initHud/initMinimap/initChat`: ambil elemen → `if (!el) return` → pasang listener → dipanggil sekali dari `startGame()`.
+6. `base: './'` (path relatif untuk `capacitor://`/`tauri://`); ubah ke `'/'` = sprite/manifest hilang di APK.

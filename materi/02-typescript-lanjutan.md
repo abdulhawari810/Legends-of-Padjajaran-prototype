@@ -88,8 +88,7 @@ export function importSave(obj: unknown): { ok: boolean; reason?: string } {
 ```
 `unknown` memaksa validasi — tepat untuk data dari luar (textarea import).
 
-**Latihan:** kenapa parameter `importSave` bukan `any`? (Jawaban: `any` lolos
-tanpa dicek → kode di bawah bisa crash; `unknown` memaksa guard.)
+**Latihan:** kenapa parameter `importSave` bukan `any`? (Jawaban ada di Kunci bawah.)
 **Kriteria:** tidak pernah memakai `any` untuk menutup error.
 
 ## 4. Type assertion (`as`) dan risikonya
@@ -242,3 +241,14 @@ Perintah cek: `./node_modules/.bin/tsc --noEmit` (tanpa build, cepat).
 - [ ] Menjelaskan `extends`/`super`/`this`/`private` di Monster.
 - [ ] Membaca `Record/Partial/Array/Promise<T>`.
 - [ ] Menjelaskan kenapa `main.ts` memakai dynamic `import()`.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+- §1: `SlotIndex` membatasi 3 angka — argumen `3` langsung error compiler.
+- §2: guard di `buyItem`: `!entry` → `!def` → gold kurang → `!spendGold`. Tiap guard menyempitkan tipe di bawahnya (mis. setelah `if (!def) return`, `def` pasti `ItemDef`).
+- §3: `any` lolos tanpa dicek → kode di bawah bisa crash; `unknown` memaksa guard (`typeof obj !== 'object'`).
+- §4: tanpa `as HTMLCanvasElement`, `.width`/`.getContext()` error (`Property does not exist on HTMLElement`). Risiko `as` salah: crash runtime yang tidak ketahuan compiler.
+- §5: `Monster` mewarisi `setVelocity/x/y/destroy` dari `Phaser.Physics.Arcade.Sprite` via `extends` — tidak perlu tulis ulang.
+- §6: `Record<string, number>` = object kunci-string nilai-angka (snapshot tas: itemId → jumlah).
+- §7: rantai `shop.ts`: `items` + `inventory` + `currency` + `stats`. Ubah `ItemDef` = compiler cek ulang semua file ini.
+- §8: `showAuthScreen()` return `Promise<boolean>` (resolve saat login) → `onReady` → `launch()` (dynamic import + `startGame`).

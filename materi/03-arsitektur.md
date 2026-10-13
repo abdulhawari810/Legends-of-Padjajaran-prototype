@@ -141,9 +141,33 @@ aturan keras: **key baru wajib didaftarkan** agar ikut export/import/clear.
 8. Touch: `body{touch-action:manipulation}`, tombol sentuh sembunyi di desktop.
 9. Monster pulang (evade) = immune + heal + abaikan player; tampilkan EVADE.
 
-## Latihan
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
 
-1. Gambar ulang diagram boot dari ingatan, lalu cocokkan dengan `main.ts`.
-2. `grep -rn "dispatchEvent" src/game/data/ | wc -l` — hitung event dari data.
-3. Jelaskan kenapa `hud.ts` tidak pernah `import` MapScene/Player.
+**§1 Tech stack:**
+1. Sebut 5 teknologi + versi (TS/Phaser/Vite/Vitest/Capacitor) tanpa mencontek. Uji: cocokkan tabel §1.
+
+**§2 Boot:**
+2. Gambar ulang diagram boot dari ingatan, lalu cocokkan dengan `main.ts`. Uji: urutan `bindAuthScreen → showAuthScreen → launch → import('./app') → startGame` benar?
+
+**§3 Peta modul:**
+3. Jelaskan 3 lapisan + aturan arah dependensi (data tidak boleh import apa?). Uji: jawab + 1 contoh rantai.
+
+**§4 Event bus:**
+4. `grep -rn "dispatchEvent" src/game/data/ | wc -l` — hitung event dari data. Sebut 3 event + pengirim + penerima. Uji: angka + tabel §4.
+
+**§5 Alur data:**
+5. Telusuri beli potion: klik → `buyItem` → 2 event → 2 UI update. Sebut keduanya. Uji: jawab.
+
+**§6 Aturan keras:**
+6. Sebut 9 aturan keras tanpa mencontek (cukup kata kunci tiap nomor). Uji: cocokkan §6.
+
 **Kriteria:** bisa menjelaskan 3 lapisan + memberi contoh 1 alur event penuh.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. TS 5.5.4 strict, Phaser 3.80.1, Vite 5.4.8, Vitest 2.1.0 + jsdom, Capacitor 8.5.3. UI = DOM+CSS (tanpa React), save = localStorage, backend = tidak ada.
+2. Lihat diagram §2. Titik sakral: dynamic `import('./app')` SETELAH profil aktif (kalau tidak, cache modul data milik profil salah).
+3. Data (murni) ← Logika (entities/scenes) + UI. Data dilarang import entity/scene/UI. Contoh: `MapScene → Player → equipment → items+attributes`.
+4. Bandingkan angkamu dengan tabel §4 (buy/sell → `shop-bought/sold`; `addGold/addItem` → `gold/inventory-changed`).
+5. `gold-changed` → HUD gold; `inventory-changed` → tas. Ditambah `shop-bought` → `registerBuy` (quest).
+6. Kata kunci: lintas-shell · overlap per-monster+splice · `onWin/onDom`+SHUTDOWN · depth dari kaki · attackRange>sentuh · ALL_KEYS · job dari meta · touch-manipulation · evade=immune.

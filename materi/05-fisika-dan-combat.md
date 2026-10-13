@@ -106,10 +106,35 @@ aggro 120 / attack 46 / cooldown 1600ms.
    (anti-exploit bunuh diri), penalti gold (lihat `showDeath`), event
    `player-died` → overlay ☠️ + tombol Respawn (`respawn()` HP penuh).
 
-## Latihan
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
 
-1. Hitung TTK warrior vs slime di kertas (P.Atk ±43 vs HP 70).
-2. Ubah `attackRange` warrior −20, rasakan: kenapa menebas jadi sulit?
-   (Aturan: range > jarak sentuh badan.)
-3. Jelaskan kenapa overlap projectile didaftarkan per-monster.
+**§1 Arcade Physics:**
+1. Sebut 3 operasi (`setVelocity`/`collider`/`overlap`) + contoh LoP masing-masing. Kapan pakai collider vs overlap? Uji: jawab 3 baris.
+
+**§2 Movement:**
+2. Jelaskan kenapa diagonal perlu `Math.SQRT1_2` (tanpa itu 41% lebih cepat — Pythagoras √2≈1,41). Uji: hapus sementara → rasakan → kembalikan.
+3. Dari mana `speed` berasal (`jobs.ts` + `moveSpeedBonus` DEX)? Berapa speed warrior vs mage vs archer? Uji: jawab + cek file.
+
+**§3 Alur serang:**
+4. Gambar alur serang lengkap dari ingatan: tombol → antrean → `tryAttack` → `rollDamage` → `damageMonster` → loot → quest → save → event. Uji: cocokkan dengan §3.
+5. Hitung TTK warrior vs slime di kertas (P.Atk ±43 vs HP 70). Uji: jawab angka.
+6. Ubah `attackRange` warrior −20, rasakan: kenapa menebas jadi sulit? (Aturan: range > jarak sentuh badan.) Kembalikan! Uji: manual.
+
+**§4 Monster AI:**
+7. Sebut 5 status AI (kejar/serang/pulang/evade/provoke) + syarat tiap transisi. Apa itu EVADE (immune+heal, bukan bug)? Uji: jawab + uji lari jauh di game.
+
+**§5 Damage ke player:**
+8. Sebut 4 tahap `takeDamage` (dodge → block/shield → mitigasi → HP/die). Kenapa cooldown SENGAJA tidak direset saat mati? Uji: jawab.
+
 **Kriteria:** bisa menggambar alur serang + menyebut 4 tahap takeDamage.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. `setVelocity` = gerak; `collider` = dinding (tidak bisa lewat: badan vs tembok); `overlap` = sensor (bisa lewat + picu efek: proyektil, portal).
+2. Tanpa normalisasi, vektor (1,1) panjangnya 1,41 → diagonal 41% lebih cepat. `×SQRT1_2` (≈0,707) mengembalikan ke 1.
+3. Job: warrior 170, mage 160, archer 190 (`jobs.ts:22,32,42`) + bonus DEX (`moveSpeedBonus`). Lihat `Player.update`.
+4. Lihat diagram §3. Titik yang sering lupa: `consumeAttack()` (antrean 1x) + cek `canAttack` (cooldown global) + melee cek depan (`dot > 0.2`).
+5. `ceil(70/43) = 2` tebasan (+variance −2..+3 dan crit bisa mengubah ±1 hit).
+6. Range < jarak sentuh = tebasan tidak pernah sampai (korban di luar jangkauan tapi badan sudah bersentuhan). Aturan keras 5.
+7. Dalam `aggroRange` → kejar; dalam `attackRange` → pukul; player mati/jauh → pulang; saat pulang → evade (immune+heal+EVADE); dipukul jauh → `provoke` (kejar 600px). Zona town aman.
+8. Lihat `Player.ts:328`: dodge→MISS; shield −40%/block 0,3; `mitigatePhysical`+tenacity (min 1); HP−=actual → `die()` bila ≤0. Cooldown tidak direset agar mati tidak jadi cara curang me-reset skill (anti-exploit).

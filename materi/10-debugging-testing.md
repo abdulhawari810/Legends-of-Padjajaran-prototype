@@ -83,9 +83,31 @@ git log --oneline -5        # riwayat (proyek ini riwayatnya pendek)
 Aturan: commit kecil + pesan jelas; jangan commit `dist/`, `node_modules/`,
 hasil build APK (sudah di `.gitignore`? verifikasi dulu).
 
-## Latihan
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
 
-1. Sengaja hapus 1 field `MonsterDef`, catat error `tsc` + perbaikannya.
-2. Tambah `console.log` di `buyItem`, beli potion, amati console.
-3. Jelaskan langkah membedakan "data salah" vs "tampilan salah" untuk gold.
+**§1 Membaca error:**
+1. Sengaja hapus 1 field `MonsterDef`, catat error `tsc` + perbaikannya. Uji: error menyebut field + file.
+
+**§2 Teknik debug:**
+2. Tambah `console.log` di `buyItem`, beli potion, amati console. Hapus log setelahnya! Uji: console.
+3. Jelaskan langkah membedakan "data salah" vs "tampilan salah" untuk gold. Uji: jawab (cek Application tab vs HUD).
+
+**§3 Bug khas:**
+4. Pilih 3 dari 7 bug khas, jelaskan bukti + perbaikannya tanpa mencontek. Uji: cocokkan §3.
+
+**§5 Testing:**
+5. Lihat [12-vitest-dari-nol](12-vitest-dari-nol.md): jalan 1 file test + suntik 1 bug → merah → kembalikan → hijau. Uji: log perintah.
+
+**§6 Git:**
+6. Lihat [18-git-untuk-game](18-git-untuk-game.md): `diff` → `checkout` 1 file latihan. Uji: `git status` bersih.
+
 **Kriteria:** bisa menjalankan 4 perintah baku + mendiagnosis 3 bug khas.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. Error `Property '...' is missing in type 'MonsterDef'` di file yang membuat literal (lihat `02 §9` cheat sheet). Perbaikan: lengkapi field sesuai `interface` di `monsters.ts:13-33`.
+2. Log muncul 1x per beli = normal; 2x = listener ganda (bug §3.1). WAJIB hapus log agar console bersih.
+3. Cek Application → Local Storage (data) vs HUD (tampilan). Data benar + tampil salah = bug UI/event; data salah = bug logika/save.
+4. Lihat §3: event ganda (bukti: efek 2x setelah portal), respawn kebal (overlap array basi), profil campur (gold akun lain), tombol HP (desktop bisa/HP tidak), teks ketutup (depth), cooldown hilang (jam scene), EVADE (bukan bug).
+5. `npx vitest run src/game/data/drops.test.ts` → suntik `+100` di gold → 1 merah → `git checkout` → hijau.
+6. `git diff <file>` (pahami) → `git checkout -- <file>` (kembalikan) → `git status --short` (bersih).

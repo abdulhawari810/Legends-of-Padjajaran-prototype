@@ -99,9 +99,37 @@ boolean adalah jembatan paling sederhana (lihat [07-ui](07-ui.md)).
   melepas listenernya; `Monster.despawn()` membunuh tween + hancurkan HP bar
   + nama. Lupa melepas = listener ganda → potion terpakai 2x, reward dobel.
 
-## Latihan
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
 
-1. Ubah `backgroundColor` Game, rebuild, lihat hasilnya.
-2. Tambah `console.log('frame', delta)` di `update`, amati angka ~16.7.
-3. Jelaskan kenapa cooldown skill TIDAK boleh pakai `this.time.now`.
+**§1 `Phaser.Game` + config:**
+1. Ubah `backgroundColor` Game, rebuild, lihat hasilnya. Batasan: hanya 1 baris. Uji: visual.
+
+**§2 Lifecycle:**
+2. Sebut urutan `constructor → init → preload → create → update → SHUTDOWN` + 1 kalimat peran tiap tahap. Uji: tulis dari ingatan.
+
+**§3 Game loop & delta:**
+3. Tambah `console.log('frame', delta)` di `update`, amati angka ~16.7. Jelaskan kenapa `x += 5` per-frame salah di layar 120Hz. Uji: console.
+
+**§4 Texture:**
+4. Hapus 1 file `public/sprites/...` sementara → game tetap jalan. Sebut fungsi fallback apa yang menggantikannya. Kembalikan! Uji: visual.
+
+**§5 Input:**
+5. Jelaskan 1 tap = 1 aksi: `requestAttack()` → `consumeAttack()` mengosongkan antrean. Apa jadinya jika `consumeAttack()` tidak dipanggil? Uji: jawab + baca `VirtualInput.ts`.
+
+**§6 Kamera/depth/bounds:**
+6. Sebut rumus depth entity + 4 offset (HP bar/bubble/partikel/teks). Apa gejala salah depth? Uji: jawab.
+
+**§7 Timer/tween/cleanup:**
+7. Jelaskan kenapa cooldown skill TIDAK boleh pakai `this.time.now` (jam scene mati saat pindah map → pakai `persistentTimers`).
+
 **Kriteria:** bisa menyebut urutan lifecycle + alasan tiap aturan cleanup.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. Background berubah saja; tidak ada logika ikut berubah (config murni visual).
+2. Lihat tabel §2: `init` terima data pindah map, `preload` load aset sekali, `create` bangun dunia, `update` tiap frame, `SHUTDOWN` lepas listener.
+3. ~16.7ms @60fps. `x += 5`/frame = 2x lebih cepat di 120Hz; benar: kali `delta` atau pakai `velocity` (px/detik).
+4. `createPlayerTextures()`/`createMonsterTextures()` menggambar prosedural karena guard `textures.exists()` — file hilang = digambar ulang.
+5. Tanpa consume, antrean tetap `true` → 1 tap dieksekusi tiap frame (serang terus). Consume = sekali baca lalu kosong.
+6. Entity `10 + kakiY*0.01`, HP bar +0.05, bubble 30, partikel 40, teks 60. Gejala: nama/HP bar ketutup monster lain.
+7. `this.time.now` milik scene → reset tiap restart MapScene → cooldown hilang tiap pindah portal. `persistentTimers` pakai `performance.now()` (jam global).

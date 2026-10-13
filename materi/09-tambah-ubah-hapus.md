@@ -64,9 +64,25 @@ bersihkan state/timer/listener → pastikan tetangga sehat → uji.
 **Senjata utama penghapusan:** `tsc --noEmit` menemukan SEMUA referensi tipe/
 import yang rusak. Jangan andalkan ingatan.
 
-## Latihan
+## Latihan (per § — kerjakan tanpa melihat Kunci di bawah!)
 
-1. Tambah item `potion-xl` (heal 120, harga shop 50G) full-prosedur di atas.
-2. Ubah aggro slime 120→80, jelaskan efek gameplay-nya.
-3. Rencanakan penghapusan `chat.ts` (desktop): daftar file yang tersentuh.
+**A. Menambah:**
+1. Tambah item `potion-xl` (heal 120, harga shop 50G) full-prosedur di atas. Uji: `tsc` + `npm test` + beli di game.
+2. Tambah 1 quest khayalan di kertas: sebut file + field `requires` + fungsi register apa. Uji: jawab.
+
+**B. Mengubah:**
+3. Ubah aggro slime 120→80, jelaskan efek gameplay-nya. Uji: main + amati jarak kejar.
+4. Jelaskan kenapa rumus potion ada di `Player.useQuickItem`, bukan `items.ts` — apa buktinya? Uji: jawab + baris kode.
+
+**C. Menghapus:**
+5. Rencanakan penghapusan `chat.ts` (desktop): daftar file yang tersentuh. Uji: `grep -rn "chat" src/ index.html` + `tsc` bersih setelah hapus.
+
 **Kriteria:** tiap perubahan menyebut file, risiko, dan cara ujinya.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+1. `items.ts` (definisi + `heal`) → `SHOP_BUY` (50G) → tas otomatis render dari `ITEMS` → tambah kasus `shop.test.ts` → `npm test`. Risiko: lupa `getItem` dikenal → `buyItem` return "Item tidak dikenal".
+2. `quests.ts` (def + `requires` rantai) → progres otomatis via `questState.register*` → klaim via NPC. Tanpa `requires` benar = quest terbuka terlalu dini.
+3. Aggro 80 < 120: slime baru kejar saat sangat dekat → area aman lebih luas → tutorial lebih mudah; risiko: map terasa sepi.
+4. Bukti: `items.ts` (`heal: 50`) hanya penanda + teks; jumlah dihitung di `useQuickItem`: `max(50, 40% maxHp)` (`Player.ts:251`). Pelajaran: telusuri pemicu→hasil DULU sebelum mengubah.
+5. Minimal: `chat.ts` + `index.html` (`#chat-panel`) + `style.css` + `app.ts` (`initChat`) + event `chat` (pengirim di MapScene/sistem). `tsc` menemukan import sisa; `npm test` memastikan tidak ada regresi data.

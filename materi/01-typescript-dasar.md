@@ -133,7 +133,7 @@ Pola `{ ok, reason? }` dipakai di SELURUH proyek untuk operasi yang bisa gagal
 (beli, equip, tempa, klaim). Tanda `?` = **optional property** (boleh tidak ada).
 
 **Latihan:** panggil `mitigatePhysical(50, 25)` di atas kertas: hitung hasilnya.
-(Jawaban: `eff=25`, `mult=100/125=0.8`, `50*0.8=40`.)
+(Jawaban ada di Kunci bawah.)
 **Kriteria:** bisa membaca signature fungsi dan memprediksi return-nya.
 
 ## 5. Optional chaining (`?.`) & nullish coalescing (`??`)
@@ -180,3 +180,11 @@ kasus: apa yang terjadi jika `??` dihapus.
 - [ ] Tahu isi `Primary` dan kenapa object harus cocok dengan interface.
 - [ ] Bisa membaca signature `{ ok: boolean; reason?: string }`.
 - [ ] Bisa menjelaskan `?.` dan `??` dengan contoh LoP.
+
+## Kunci (BUKA SETELAH mengerjakan!)
+
+- §1: error `Type 'string' is not assignable to type 'number'` di baris `gold`; kembalikan ke `number`.
+- §2: `number` (penjumlahan dua angka + `Math.floor` = `number`).
+- §3: error `Property 'exp' is missing in type 'MonsterDef'`; batalkan dengan `git checkout`.
+- §4: `eff=25`, `mult=100/125=0.8`, `50*0.8=40` → return `40`.
+- §5: tanpa `??`, `Map.get()` yang `undefined` menghasilkan `NaN` saat `+`/`-`; dengan `?? 0` jadi angka valid.

@@ -7,7 +7,7 @@ game **tanpa bergantung pada AI sebagai penulis kode**.
 
 ## Cara memakai materi ini
 
-1. Baca berurutan dari `01` → `11`. Setiap file saling terhubung lewat tautan.
+1. Baca berurutan dari `00` → `18`. Setiap file saling terhubung lewat tautan.
 2. Setiap konsep punya **latihan + kriteria paham**. Jangan lanjut sebelum lolos kriteria.
 3. Selalu buka file sumber yang dirujuk di VS Code sambil membaca (path relatif dari root `mmorpg/`).
 4. Kerjakan latihan **tanpa melihat jawaban**; pembahasan ada di file latihan.
@@ -18,7 +18,8 @@ game **tanpa bergantung pada AI sebagai penulis kode**.
 
 | # | File | Isi | Prasyarat |
 |---|------|-----|-----------|
-| 1 | [01-typescript-dasar.md](01-typescript-dasar.md) | Anotasi tipe, inference, primitif, array, object, fungsi, parameter opsional/default, optional chaining, nullish coalescing | Dasar JS + JSX (kamu sudah punya) |
+| 0 | [00-fondasi-web.md](00-fondasi-web.md) | DOM vs Canvas vs storage, `index.html`, 4 perintah npm, Vite `base './'`, DevTools | Bisa install Node |
+| 1 | [01-typescript-dasar.md](01-typescript-dasar.md) | Anotasi tipe, inference, primitif, array, object, fungsi, parameter opsional/default, optional chaining, nullish coalescing | 00 + dasar JS |
 | 2 | [02-typescript-lanjutan.md](02-typescript-lanjutan.md) | `type` vs `interface`, union/literal/narrowing, `any/unknown/void/never`, assertion, class, generics, modul, async/event, baca error TS, tipe Phaser | 01 |
 | 3 | [03-arsitektur.md](03-arsitektur.md) | Tech stack, entry point, alur boot auth→game, peta modul, event bus, alur data, aturan keras proyek | 01–02 |
 | 4 | [04-phaser.md](04-phaser.md) | `Phaser.Game`, Scene lifecycle, game loop + delta, texture, input, kamera, depth, timer/tween, cleanup | 03 |
@@ -28,7 +29,16 @@ game **tanpa bergantung pada AI sebagai penulis kode**.
 | 8 | [08-file-katalog.md](08-file-katalog.md) | Katalog semua file: tujuan, export, dependensi, risiko ubah/hapus, cara uji | 03–07 (rujukan) |
 | 9 | [09-tambah-ubah-hapus.md](09-tambah-ubah-hapus.md) | Prosedur menambah, mengubah, menghapus fitur dengan contoh LoP | 01–08 |
 | 10 | [10-debugging-testing.md](10-debugging-testing.md) | Baca error, debugger, bug khas proyek, vitest, git aman, contoh diagnosis | 01–08 |
-| 11 | [11-latihan-dan-kelulusan.md](11-latihan-dan-kelulusan.md) | Latihan level 1–6, proyek akhir, ujian praktik, checklist kelulusan | Semua |
+| 11 | [11-latihan-dan-kelulusan.md](11-latihan-dan-kelulusan.md) | Latihan level 1–6, proyek akhir, ujian praktik, checklist kelulusan | Semua di atas |
+| 12 | [12-vitest-dari-nol.md](12-vitest-dari-nol.md) | Anatomi test, injeksi `rand`, `beforeEach(reset)`, merah→hijau, tes pertama | 00–01 |
+| 13 | [13-save-profil.md](13-save-profil.md) | Peta key, `ALL_KEYS`, slot/export/import, wipe aman, save rusak | 03 + 12 |
+| 14 | [14-aset-sprite-audio.md](14-aset-sprite-audio.md) | Fallback prosedural, `PLAYER_FRAMES`, `MONSTER_SHEETS`, SFX WebAudio, PWA | 04 |
+| 15 | [15-balancing.md](15-balancing.md) | TTK, formula atribut/EXP, segitiga ekonomi drop→jual→beli | 06 |
+| 16 | [16-event-cookbook.md](16-event-cookbook.md) | Resep tambah event baru, `onWin/onDom`, anti-listener-ganda | 03 + 07 |
+| 17 | [17-mobile-desktop.md](17-mobile-desktop.md) | Capacitor APK, Tauri, lanskap wajib, pointer vs klik, performa HP | 00 + 07 |
+| 18 | [18-git-untuk-game.md](18-git-untuk-game.md) | 5 perintah penyelamat, commit kecil, branch per fitur | 10 |
+
+Urutan saran pemula total: `00 → 01 → 02 → 12 → 03 → 04 → 05 → 06 → 15 → 13 → 07 → 16 → 14 → 08 → 09 → 10 → 18 → 17 → 11`.
 
 ## Status proyek saat materi ditulis (audit Oktober 2026)
 
